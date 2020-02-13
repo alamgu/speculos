@@ -25,7 +25,7 @@ add_library(emu
         emu_os_bip32.c
         emu_seproxyhal.c)
 
-target_link_libraries(emu ssl)
+target_link_libraries(emu ssl crypto)
 
 add_executable(launcher launcher.c)
 target_link_libraries(launcher PRIVATE emu)
