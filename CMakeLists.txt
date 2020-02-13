@@ -20,8 +20,7 @@ include_directories(sdk src)
 
 set(INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/install)
 
-add_library(cmocka-static STATIC SHARED IMPORTED)
-add_dependencies(cmocka-static cmocka)
+add_library(cmocka UNKNOWN IMPORTED)
 
 include_directories(${INSTALL_DIR}/include)
 link_directories(${INSTALL_DIR}/lib)
