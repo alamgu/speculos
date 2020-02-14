@@ -142,7 +142,7 @@ if __name__ == '__main__':
     group.add_argument('--finger-port', type=int, help='Spawn a TCP server on the specified port to receive finger touch (x,y,pressed)+')
 
     group = parser.add_argument_group('display arguments', 'These arguments might only apply to one of the display method.')
-    group.add_argument('--display', default='qt', choices=['headless', 'qt', 'text'])
+    group.add_argument('--display', default='text', choices=['headless', 'qt', 'text'])
     group.add_argument('--ontop', action='store_true', help='The window stays on top of all other windows')
     group.add_argument('--keymap', action='store', help="Text UI keymap in the form of a string (e.g. 'was' => 'w' for left button, 'a' right, 's' both). Default: arrow keys")
     group.add_argument('--progressive', action='store_true', help='Enable step-by-step rendering of graphical elements')

@@ -45,17 +45,20 @@ rec {
     ];
   };
   inherit (speculosPkgs) speculosLauncher;
-  speculos = pkgs.callPackage ({ stdenv, python36, qemu }: stdenv.mkDerivation {
+  speculos = pkgs.callPackage ({ stdenv, python36, qemu, makeWrapper }: stdenv.mkDerivation {
     name = "speculos";
     src = ./.;
     buildPhase = "";
-    buildInputs = [ (python36.withPackages (ps: with ps; [pyqt5 construct mnemonic pyelftools setuptools])) qemu ];
+    buildInputs = [ (python36.withPackages (ps: with ps; [pyqt5 construct mnemonic pyelftools setuptools])) qemu makeWrapper ];
     installPhase = ''
     mkdir $out
     cp -a $src/speculos.py $out/
+    install -d $out/bin
+    ln -s $out/speculos.py $out/bin/speculos.py
     cp -a $src/mcu $out/mcu
     install -d $out/build/src/
     ln -s ${speculosLauncher}/launcher $out/build/src/launcher
+    makeWrapper $out/speculos.py $out/bin/speculos --set PATH $PATH
     '';
   }) {};
 }
