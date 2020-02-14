@@ -57,7 +57,7 @@ def get_elf_infos(app_path):
     return sh_offset, sh_size, stack, stack_size, ram_addr, ram_size
 
 def run_qemu(s1, s2, app_path, libraries=[], seed=DEFAULT_SEED, debug=False, trace_syscalls=False, deterministic_rng="", model=None, ram_arg=None, sdk_version="1.5"):
-    args = [ 'qemu-arm-static' ]
+    args = [ 'qemu-arm' ]
 
     if debug:
         args += [ '-g', '1234', '-singlestep' ]
