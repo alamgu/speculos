@@ -1,5 +1,12 @@
 { pkgs ? import ../nixpkgs {}, gitDescribe ? "TEST-dirty", nanoXSdk ? null, ... }:
+
 rec {
+
+  src = pkgs.lib.cleanSourceWith {
+    filter = path: type: !(builtins.any (x: x == baseNameOf path) ["result" ".git" "tags" "TAGS" "dist"]);
+    src = ./.;
+  };
+
   speculosPkgs = import pkgs.path {
     crossSystem = {
       config = "armv6l-unknown-linux-gnueabihf";
@@ -18,7 +25,7 @@ rec {
         speculosLauncher = speculosPkgs.callPackage ({ stdenv, cmake, ninja, perl, pkg-config, openssl, cmocka }: stdenv.mkDerivation {
           name = "speculos";
 
-          src = ./.; # fetchThunk ./nix/dep/speculos;
+          inherit src;
 
           nativeBuildInputs = [ 
             cmake
@@ -44,10 +51,12 @@ rec {
       })
     ];
   };
+
   inherit (speculosPkgs) speculosLauncher;
+
   speculos = pkgs.callPackage ({ stdenv, python36, qemu, makeWrapper }: stdenv.mkDerivation {
     name = "speculos";
-    src = ./.;
+    inherit src;
     buildPhase = "";
     buildInputs = [ (python36.withPackages (ps: with ps; [pyqt5 construct mnemonic pyelftools setuptools])) qemu makeWrapper ];
     installPhase = ''
@@ -61,4 +70,5 @@ rec {
     makeWrapper $out/speculos.py $out/bin/speculos --set PATH $PATH
     '';
   }) {};
+
 }
