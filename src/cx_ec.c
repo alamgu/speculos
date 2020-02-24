@@ -6,6 +6,7 @@
 #include <openssl/objects.h>
 #include <openssl/err.h>
 
+#include "cx.h"
 #include "cx_ec.h"
 #include "cx_hash.h"
 #include "exception.h"
@@ -544,7 +545,7 @@ const cx_curve_domain_t *cx_ecfp_get_domain(cx_curve_t curve) {
   THROW(INVALID_PARAMETER);
 }
 
-int sys_cx_ecdsa_verify(const cx_ecfp_public_key_t *key, int UNUSED(mode), cx_md_t UNUSED(hashID), const uint8_t *hash, unsigned int hash_len, const uint8_t *sig,  unsigned int sig_len)
+int sys_cx_ecdsa_verify(const cx_ecfp_public_key_t *key, int mode, cx_md_t hashID, const uint8_t *hash, unsigned int hash_len, const uint8_t *sig,  unsigned int sig_len)
 {
   cx_curve_weierstrass_t      *domain;
   unsigned int                 size;
@@ -645,7 +646,7 @@ int cx_ecfp_encode_sig_der(unsigned char* sig, unsigned int sig_len,
   return 2+sig[1];
 }
 
-int sys_cx_ecdsa_sign(const cx_ecfp_private_key_t *key, int UNUSED(mode), cx_md_t UNUSED(hashID), const uint8_t *hash, unsigned int hash_len, uint8_t *sig, unsigned int sig_len, unsigned int *UNUSED(info))
+int sys_cx_ecdsa_sign(const cx_ecfp_private_key_t *key, int mode, cx_md_t hashID, const uint8_t *hash, unsigned int hash_len, uint8_t *sig, unsigned int sig_len, unsigned int *UNUSED(info))
 {
   int nid = 0;
   uint8_t *buf_r, *buf_s;
@@ -661,7 +662,13 @@ int sys_cx_ecdsa_sign(const cx_ecfp_private_key_t *key, int UNUSED(mode), cx_md_
   BN_bin2bn(key->d, key->d_len, x);
   EC_KEY *ec_key = EC_KEY_new_by_curve_name(nid);
   EC_KEY_set_private_key(ec_key, x);
-  ECDSA_SIG *ecdsa_sig = ECDSA_do_sign(hash, hash_len, ec_key);
+  if (sig_len < ECDSA_size(ec_key)) fprintf(stderr, "Insufficient memory passed to signing\n");
+  int ret;
+  int ecdsa_type = ((mode & CX_RND_RFC6979) && hashID == CX_BLAKE2B) ? 1056 : -1;
+  printf("Signing with ecdsa_type: %d %d %d %d %d\n", ecdsa_type, mode&CX_RND_RFC6979, hashID == CX_BLAKE2B, hashID, CX_BLAKE2B);
+  ECDSA_sign(ecdsa_type, hash, hash_len, sig, &ret, ec_key);
+  /*
+  // ECDSA_SIG *ecdsa_sig = ECDSA_do_sign(hash, hash_len, ec_key);
 
   // normalize signature (s < n/2) if needed
   BIGNUM *halfn = BN_new();
@@ -689,6 +696,7 @@ int sys_cx_ecdsa_sign(const cx_ecfp_private_key_t *key, int UNUSED(mode), cx_md_
   ECDSA_SIG_free(ecdsa_sig);
   BN_free(normalized_s);
   BN_free(halfn);
+  */
   EC_KEY_free(ec_key);
   BN_free(x);
   return ret;

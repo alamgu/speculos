@@ -15,7 +15,16 @@ rec {
     config = { allowUnsupportedSystem = true; };
     overlays = [
       (self: super: rec {
-        speculosLauncher = speculosPkgs.callPackage ({ stdenv, cmake, ninja, perl, pkg-config, openssl, cmocka }: stdenv.mkDerivation {
+        openssl2 = super.openssl.overrideAttrs (orig: {
+          src = super.fetchFromGitHub {
+            owner = "openssl";
+            repo = "openssl";
+            # branch = "JemmyLoveJenny:ecdsa_deterministic_signature";
+            rev = "bf73df3ba616409f30f7fe345ab6257aa1cd2ca8";
+            sha256 = "0hr1fawxwymzbg00by1kqdgwy6r2g7crdg8xkxd2s1nmkpdr3zz6";
+          };
+        });
+        speculosLauncher = speculosPkgs.callPackage ({ stdenv, cmake, ninja, perl, pkg-config, openssl2, cmocka }: stdenv.mkDerivation {
           name = "speculos";
 
           src = ./.; # fetchThunk ./nix/dep/speculos;
@@ -28,7 +37,7 @@ rec {
           ];
 
           buildInputs = [
-            openssl
+            openssl2
             cmocka
           ];
 

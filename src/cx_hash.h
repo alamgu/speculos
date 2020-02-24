@@ -36,7 +36,7 @@ enum cx_md_e {
   /** SHA3 Digest */
   CX_SHA3,         //28,32,48,64 bytes
   /** SHA3-XOF  Digest */
-  CX_SHA3_XOF,     //any bytes
+  // CX_SHA3_XOF,     //any bytes
   /** Groestl Digest */
   CX_GROESTL,
   /** Blake Digest */
