@@ -109,6 +109,7 @@ class SeProxyHal:
             tag, data = self.queue.pop(0)
             self._send_packet(tag, data)
             self.status_received = False
+            self.send_ticker_event_defered()
         else:
             # if no real event available in the queue, send a ticker event
             # every 100ms

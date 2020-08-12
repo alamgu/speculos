@@ -1,6 +1,7 @@
 import binascii
 from collections import namedtuple
 from construct import *
+import socket
 
 from . import bagl_font
 from . import bagl_glyph
@@ -62,11 +63,15 @@ SEPROXYHAL_TAG_SCREEN_DISPLAY_RAW_STATUS_START = 0x00
 DrawState = namedtuple('DrawState', 'x y width height colors bpp xx yy')
 
 class Bagl:
-    def __init__(self, m, size):
+    def __init__(self, m, size, screen=None):
         self.m = m
         self.SCREEN_WIDTH, self.SCREEN_HEIGHT = size
 
         self.draw_state = DrawState(0, 0, 0, 0, [], 0, 0, 0)
+
+        self.update_sender = BaglUpdates(2343)
+        if screen is not None:
+            screen.add_notifier(self.update_sender)
 
     def refresh(self):
         self.m.update()
@@ -112,6 +117,7 @@ class Bagl:
                         return
 
         self.draw_state = DrawState(x, y, width, height, colors, bpp, xx, yy)
+        self.update_sender.send_update();
 
     def hal_draw_rect(self, color, x, y, width, height):
         if x + width > self.SCREEN_WIDTH or x < 0:
@@ -144,6 +150,7 @@ class Bagl:
                 xx = requested_x
             if height == 0:
                 break
+        self.update_sender.send_update();
 
     def compute_line_width(font_id, width, text, text_encoding):
         font = bagl_font.get(font_id)
@@ -598,3 +605,25 @@ class Bagl:
             restore = (self.draw_state.xx, self.draw_state.yy)
 
             self.hal_draw_bitmap_within_rect(x, y, w, h, colors, bpp, bitmap, restore)
+
+class BaglUpdates:
+    def __init__(self, port):
+        self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.s.bind(('0.0.0.0', port))
+        self.s.listen(5)
+        self.clients = []
+
+    def can_read(self, s, screen):
+        c, addr = self.s.accept()
+
+        print('[*] new update-listener client from', addr)
+        self.clients.append(c)
+        c.setblocking(False)
+
+    def send_update(self):
+        for c in self.clients:
+            try:
+                c.send(b"Update\n")
+            except:
+                self.clients.remove(c)

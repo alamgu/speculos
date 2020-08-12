@@ -23,7 +23,7 @@ class Headless(Display):
         self._init_notifiers(apdu, seph, button_tcp, finger_tcp, vnc)
 
         m = HeadlessPaintWidget(self, self.model, vnc)
-        self.bagl = bagl.Bagl(m, MODELS[self.model].screen_size)
+        self.bagl = bagl.Bagl(m, MODELS[self.model].screen_size, self)
 
     def display_status(self, data):
         self.bagl.display_status(data)

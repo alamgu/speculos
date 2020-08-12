@@ -85,7 +85,7 @@ class TextScreen(Display):
 
         self.width, self.height = MODELS[model].screen_size
         self.m = TextWidget(self, model)
-        self.bagl = bagl.Bagl(self.m, MODELS[model].screen_size)
+        self.bagl = bagl.Bagl(self.m, MODELS[model].screen_size, self)
 
         self._init_notifiers(apdu, seph, button_tcp, finger_tcp)
 
