@@ -181,6 +181,29 @@ typedef struct cx_ecfp_256_extended_private_key_s cx_ecfp_256_extended_private_k
 typedef struct cx_ecfp_256_public_key_s cx_ecfp_public_key_t;
 typedef struct cx_ecfp_256_private_key_s cx_ecfp_private_key_t;
 
+/** Up to 384 bits Public Elliptic Curve key */
+struct cx_ecfp_384_public_key_s {
+  /** curve ID #cx_curve_e */
+  cx_curve_t curve;
+  /** Public key length in bytes */
+  size_t W_len;
+  /** Public key value starting at offset 0 */
+  uint8_t W[97];
+};
+/** Up to 384 bits Private Elliptic Curve key */
+struct cx_ecfp_384_private_key_s {
+  /** curve ID #cx_curve_e */
+  cx_curve_t curve;
+  /** Public key length in bytes */
+  size_t d_len;
+  /** Public key value starting at offset 0 */
+  uint8_t d[48];
+};
+/** Convenience type. See #cx_ecfp_384_public_key_s. */
+typedef struct cx_ecfp_384_private_key_s cx_ecfp_384_private_key_t;
+/** Convenience type. See #cx_ecfp_384_private_key_s. */
+typedef struct cx_ecfp_384_public_key_s cx_ecfp_384_public_key_t;
+
 /** Up to 512 bits Public Elliptic Curve key */
 struct cx_ecfp_512_public_key_s {
   /** curve ID #cx_curve_e */
@@ -240,6 +263,7 @@ typedef struct cx_ecfp_640_private_key_s cx_ecfp_640_private_key_t;
 
 const cx_curve_domain_t *cx_ecfp_get_domain(cx_curve_t curve);
 
+int sys_cx_ecfp_add_point(cx_curve_t curve, uint8_t *R, const uint8_t *P, const uint8_t *Q, size_t X_len);
 unsigned long sys_cx_ecfp_init_public_key(cx_curve_t curve, const unsigned char *rawkey, unsigned int key_len, cx_ecfp_public_key_t *key);
 int sys_cx_ecfp_generate_pair(cx_curve_t curve, cx_ecfp_public_key_t *public_key, cx_ecfp_private_key_t *private_key, int keep_private);
 int sys_cx_ecfp_generate_pair2(cx_curve_t curve, cx_ecfp_public_key_t *public_key, cx_ecfp_private_key_t *private_key, int keep_private, cx_md_t hashID);
@@ -251,4 +275,13 @@ int sys_cx_eddsa_sign(const cx_ecfp_private_key_t *pvkey, int mode, cx_md_t hash
                       const unsigned char *ctx, unsigned int ctx_len, unsigned char *sig, unsigned int sig_len, unsigned int *info);
 int sys_cx_eddsa_verify(const cx_ecfp_public_key_t *pu_key, int mode, cx_md_t hashID, const unsigned char *hash, unsigned int hash_len,
                         const unsigned char  *ctx , unsigned int ctx_len, const unsigned char *sig,  unsigned int sig_len);
+int sys_cx_ecfp_scalar_mult(cx_curve_t curve, unsigned char *P, unsigned int P_len, const unsigned char *k, unsigned int k_len);
+int sys_cx_edward_compress_point(cx_curve_t curve, uint8_t *P, size_t P_len);
+int sys_cx_eddsa_get_public_key(const cx_ecfp_private_key_t *pv_key, cx_md_t hashID, cx_ecfp_public_key_t *pu_key);
+int sys_cx_edward_decompress_point(cx_curve_t curve, uint8_t *P, size_t P_len);
+
+int cx_ecfp_decode_sig_der(const uint8_t *input, size_t input_len,
+    size_t max_size, const uint8_t **r, size_t *r_len, const uint8_t **s,
+    size_t *s_len);
+
 #endif

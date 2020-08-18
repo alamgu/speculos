@@ -10,10 +10,6 @@ services:
       - "1234:1234"
       - "40000:40000" # apdu
       - "41000:41000" # vnc
-    environment:
-      - DEBUG_MODE=
-      - DEVICE_MODEL=nanos
-      - SDK_VERSION=1.6
-      - APP_FILE=btc.elf
-      - DEVICE_SEED=<SEED>
-      - EXTRA_OPTIONS=
+      - "42000:42000" # tcp buttons
+    command: "--model nanos ./apps/btc.elf --sdk 1.6 --seed secret --display headless --apdu-port 40000 --vnc-port 41000 --button-port 42000"
+    # Add `--vnc-password "<password>"` for macos users to use built-in vnc client.

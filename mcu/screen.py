@@ -1,20 +1,15 @@
 import sys
 
-from PyQt5.QtWidgets import QApplication, QWidget, QMainWindow, QLabel
-from PyQt5.QtGui import QPainter, QColor, QPen, QPixmap
+from PyQt5.QtWidgets import QApplication, QWidget, QMainWindow
+from PyQt5.QtGui import QPainter, QColor, QPixmap
 from PyQt5.QtGui import QIcon
-from PyQt5.QtCore import Qt, QObject, QRunnable, QMetaObject, QSocketNotifier, \
-    pyqtSlot, pyqtSignal, QSettings
+from PyQt5.QtCore import Qt, QObject, QSocketNotifier, QSettings
 
 from . import bagl
 from .display import Display, FrameBuffer, COLORS, MODELS, RENDER_METHOD
 
 BUTTON_LEFT  = 1
 BUTTON_RIGHT = 2
-
-class FB(FrameBuffer):
-    def __init__(self, model):
-        super().__init__(model)
 
 class PaintWidget(QWidget):
     def __init__(self, parent, model, pixel_size, vnc=None):
@@ -87,13 +82,17 @@ class Screen(Display):
             buttons = { Qt.Key_Left: BUTTON_LEFT, Qt.Key_Right: BUTTON_RIGHT }
             # forward this event to seph
             self.seph.handle_button(buttons[key], pressed)
+        elif key == Qt.Key_Down:
+            self.seph.handle_button(BUTTON_LEFT, pressed)
+            self.seph.handle_button(BUTTON_RIGHT, pressed)
         elif key == Qt.Key_Q and not pressed:
             self.app.close()
 
     def display_status(self, data):
-        self.bagl.display_status(data)
+        ret = self.bagl.display_status(data)
         if MODELS[self.model].name == 'blue':
             self.screen_update()    # Actually, this method doesn't work
+        return ret
 
     def display_raw_status(self, data):
         self.bagl.display_raw_status(data)
@@ -111,6 +110,7 @@ class App(QMainWindow):
 
         self.seph = seph
         self.width, self.height = MODELS[model].screen_size
+        self.pixel_size = pixel_size
         self.box_position_x, self.box_position_y = MODELS[model].box_position
         box_size_x, box_size_y = MODELS[model].box_size
 
@@ -154,17 +154,23 @@ class App(QMainWindow):
     def keyReleaseEvent(self, event):
         self.screen._key_event(event, False)
 
+    def _get_x_y(self):
+        x = self.mouse_offset.x() // self.pixel_size - (self.box_position_x + 1)
+        y = self.mouse_offset.y() // self.pixel_size - (self.box_position_y + 1)
+        return x, y
+
     def mousePressEvent(self, event):
         '''Get the mouse location.'''
 
         self.mouse_offset = event.pos()
 
-        self.seph.handle_finger(self.mouse_offset.x(), self.mouse_offset.y(), True)
+        x, y = self._get_x_y()
+        if x >= 0 and x < self.width and y >= 0 and y < self.height:
+            self.seph.handle_finger(x, y, True)
         QApplication.setOverrideCursor(Qt.DragMoveCursor)
 
     def mouseReleaseEvent(self, event):
-        x = self.mouse_offset.x() - (self.box_position_x + 1)
-        y = self.mouse_offset.y() - (self.box_position_y + 1)
+        x, y = self._get_x_y()
         if x >= 0 and x < self.width and y >= 0 and y < self.height:
             self.seph.handle_finger(x, y, False)
         QApplication.restoreOverrideCursor()
@@ -184,13 +190,13 @@ class App(QMainWindow):
         the settings file in order to restore it upon next speculos execution.
         '''
         settings = QSettings("ledger", "speculos")
-        window_x = settings.setValue("window_x", self.pos().x())
-        window_y = settings.setValue("window_y", self.pos().y())
+        settings.setValue("window_x", self.pos().x())
+        settings.setValue("window_y", self.pos().y())
 
 class QtScreen:
     def __init__(self, apdu, seph, button_tcp=None, finger_tcp=None, color='MATTE_BLACK', model='nanos', ontop=False, rendering=RENDER_METHOD.FLUSHED, vnc=None, pixel_size=2, **_):
         self.app = QApplication(sys.argv)
-        App(apdu, seph, button_tcp, finger_tcp, color, model, ontop, rendering, vnc, pixel_size)
+        self.app_widget = App(apdu, seph, button_tcp, finger_tcp, color, model, ontop, rendering, vnc, pixel_size)
 
     def run(self):
         self.app.exec_()

@@ -58,7 +58,7 @@ rec {
     name = "speculos";
     inherit src;
     buildPhase = "";
-    buildInputs = [ (python36.withPackages (ps: with ps; [pyqt5 construct mnemonic pyelftools setuptools])) qemu makeWrapper ];
+    buildInputs = [ (python36.withPackages (ps: with ps; [pyqt5 construct mnemonic pyelftools setuptools jsonschema])) qemu makeWrapper ];
     installPhase = ''
     mkdir $out
     cp -a $src/speculos.py $out/

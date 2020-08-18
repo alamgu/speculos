@@ -1,0 +1,65 @@
+# Build speculos and run tests using GitHub Actions
+
+name: Continuous Integration
+
+# Controls when the action will run. Triggers the workflow on push or pull request
+# events but only for the master branch
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    name: Clone, build, test
+    runs-on: ubuntu-latest
+
+    # Use https://hub.docker.com/r/ledgerhq/speculos-builder which has all the
+    # required dependencies
+    container:
+      image: docker://ledgerhq/speculos-builder:latest
+
+    steps:
+    - name: Clone
+      uses: actions/checkout@v2
+
+    - name: Build
+      run: |
+        cmake -Bbuild -H. -DPRECOMPILED_DEPENDENCIES_DIR=/install -DWITH_VNC=1
+        make -C build
+
+    - name: Test
+      env:
+        CTEST_OUTPUT_ON_FAILURE: 1
+      run: |
+        make -C build/ test
+        pytest
+
+    - name: Publish to DockerHub
+      if: success() && github.event_name == 'push' && github.ref == 'refs/heads/master'
+      uses: docker/build-push-action@v1
+      with:
+        repository: ledgerhq/speculos
+        dockerfile: Dockerfile
+        username: ${{ secrets.dockerhub_username }}
+        password: ${{ secrets.dockerhub_password }}
+        tag_with_sha: true
+        tags: latest
+
+    - name: Rebuild with code coverage instrumentation
+      env:
+        CTEST_OUTPUT_ON_FAILURE: 1
+        RNG_SEED: 0
+      run: |
+        cmake -Bbuild -H. -DPRECOMPILED_DEPENDENCIES_DIR=/install -DWITH_VNC=1 -DCODE_COVERAGE=ON
+        make -C build clean
+        make -C build
+        make -C build test
+        pytest
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        name: codecov-speculos
+        fail_ci_if_error: true

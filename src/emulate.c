@@ -4,7 +4,6 @@
 #include "cx.h"
 #include "cx_aes.h"
 #include "cx_ec.h"
-#include "cx_crc.h"
 #include "cx_hash.h"
 #include "cx_hmac.h"
 #include "cx_math.h"
@@ -108,6 +107,13 @@ int emulate_common(unsigned long syscall, unsigned long *parameters, unsigned lo
            const uint8_t *,              sig,
            unsigned int,                 sig_len);
 
+  SYSCALL5(cx_ecfp_add_point, "(0x%x, %p, %p, %p, %u)",
+           cx_curve_t, curve,
+           uint8_t *,  R,
+           uint8_t *,  P,
+           uint8_t *,  Q,
+           size_t,     X_len);
+
   SYSCALL4(cx_ecfp_generate_pair, "(0x%x, %p, %p, %d)",
            cx_curve_t,              curve,
            cx_ecfp_public_key_t *,  public_key,
@@ -126,7 +132,19 @@ int emulate_common(unsigned long syscall, unsigned long *parameters, unsigned lo
            unsigned int,            key_len,
            cx_ecfp_public_key_t *,  key);
 
-/*  SYSCALL10(cx_eddsa_sign, "(%p, 0x%x, 0x%x, %p, %u, %p, %u, %p, %u, %p)",
+  SYSCALL5(cx_ecfp_scalar_mult, "(0x%x, %p, %u, %p, %u)",
+           cx_curve_t,            curve,
+           unsigned char *,       P,
+           unsigned int,          P_len,
+           const unsigned char *, k,
+           unsigned int,          k_len);
+
+/*  SYSCALL3(cx_eddsa_get_public_key, "(%p, 0x%x, %p)",
+           const cx_ecfp_private_key_t *, pvkey,
+           cx_md_t,                       hashID,
+           cx_ecfp_public_key_t *,        pu_key);
+
+  SYSCALL10(cx_eddsa_sign, "(%p, 0x%x, 0x%x, %p, %u, %p, %u, %p, %u, %p)",
             const cx_ecfp_private_key_t *, pvkey,
             int,                           mode,
             cx_md_t,                       hashID,
@@ -149,6 +167,16 @@ int emulate_common(unsigned long syscall, unsigned long *parameters, unsigned lo
     const unsigned char *,        sig,
     unsigned int,                 sig_len); */
 
+  SYSCALL3(cx_edward_compress_point, "(0x%x, %p, %u)",
+           cx_curve_t, curve,
+           uint8_t *,  P,
+           size_t,     P_len);
+
+  SYSCALL3(cx_edward_decompress_point, "(0x%x, %p, %u)",
+           cx_curve_t, curve,
+           uint8_t *,  P,
+           size_t,     P_len);
+
   SYSCALL6(cx_hash, "(%p, 0x%x, %p, %u, %p, %u)",
            cx_hash_t *,     hash,
            int,             mode,
@@ -158,6 +186,12 @@ int emulate_common(unsigned long syscall, unsigned long *parameters, unsigned lo
            size_t,          out_len);
 
   SYSCALL4(cx_hash_sha256, "(%p, %u, %p, %u)",
+           const uint8_t *, in,
+           size_t,          len,
+           uint8_t *,       out,
+           size_t,          out_len);
+
+  SYSCALL4(cx_hash_sha512, "(%p, %u, %p, %u)",
            const uint8_t *, in,
            size_t,          len,
            uint8_t *,       out,
@@ -188,6 +222,12 @@ int emulate_common(unsigned long syscall, unsigned long *parameters, unsigned lo
            const uint8_t *,    key,
            unsigned int,       key_len);
 
+  SYSCALL4(cx_math_add, "(%p, %p, %p, %u)",
+           uint8_t *,       r,
+           const uint8_t *, a,
+           const uint8_t *, b,
+           unsigned int,    len);
+
   SYSCALL5(cx_math_addm, "(%p, %p, %p, %p, %u)",
            uint8_t *,       r,
            const uint8_t *, a,
@@ -198,6 +238,18 @@ int emulate_common(unsigned long syscall, unsigned long *parameters, unsigned lo
   SYSCALL3(cx_math_cmp, "(%p, %p, %u)",
            const uint8_t *, a,
            const uint8_t *, b,
+           unsigned int,    len);
+
+  SYSCALL4(cx_math_invintm, "(%p, %u, %p, %u)",
+           uint8_t *,       r,
+           uint32_t,        a,
+           const uint8_t *, m,
+           size_t,          len);
+
+  SYSCALL4(cx_math_invprimem, "(%p, %p, %p, %u)",
+           uint8_t *,       r,
+           const uint8_t *, a,
+           const uint8_t *, m,
            unsigned int,    len);
 
   SYSCALL2(cx_math_is_prime, "(%p, %u)",
@@ -213,6 +265,12 @@ int emulate_common(unsigned long syscall, unsigned long *parameters, unsigned lo
            unsigned int,    len_v,
            const uint8_t *, m,
            unsigned int,    len_m);
+
+  SYSCALL4(cx_math_mult, "(%p, %p, %p, %u)",
+           uint8_t *,       r,
+           const uint8_t *, a,
+           const uint8_t *, b,
+           unsigned int,    len);
 
   SYSCALL5(cx_math_multm, "(%p, %p, %p, %p, %u)",
            uint8_t *,       r,
@@ -235,6 +293,8 @@ int emulate_common(unsigned long syscall, unsigned long *parameters, unsigned lo
 
   SYSCALL1(cx_sha256_init, "(%p)", cx_sha256_t *, hash);
 
+  SYSCALL1(cx_sha512_init, "(%p)", cx_sha512_t *, hash);
+
   SYSCALL2(cx_sha3_init, "(%p, %u)",
           cx_sha3_t *, hash,
           unsigned int, size);
@@ -243,6 +303,27 @@ int emulate_common(unsigned long syscall, unsigned long *parameters, unsigned lo
           cx_sha3_t *, hash,
           unsigned int, size,
           unsigned int, out_length);
+
+  SYSCALL6(cx_math_powm,    "(%p, %p, %p, %u, %p, %u)",
+           uint8_t *,       r,
+           const uint8_t *, a,
+           const uint8_t *, e,
+           size_t,          len_e,
+           const uint8_t *, m,
+           size_t,          len);
+
+  SYSCALL4(cx_math_sub,     "(%p, %p, %p, %u)",
+           uint8_t *,       r,
+           const uint8_t *, a,
+           const uint8_t *, b,
+           size_t,          len);
+
+  SYSCALL5(cx_math_subm,    "(%p, %p, %p, %p, %u)",
+           uint8_t *,       r,
+           const uint8_t *, a,
+           const uint8_t *, b,
+           const uint8_t *, m,
+           size_t,          len);
 
   SYSCALL3(nvm_write,  "(%p, %p, %u)",
            void *, dst_addr,
@@ -260,12 +341,8 @@ int emulate_common(unsigned long syscall, unsigned long *parameters, unsigned lo
 
   SYSCALL0(os_flags);
 
-  SYSCALL0(os_global_pin_invalidate);
-
   SYSCALL1(os_lib_throw, "(0x%x)",
            unsigned int, exception);
-
-  SYSCALL0(os_perso_isonboarded);
 
   SYSCALL5(os_perso_derive_node_bip32, "(0x%x, %p, %u, %p, %p)",
            cx_curve_t,       curve,
@@ -279,8 +356,6 @@ int emulate_common(unsigned long syscall, unsigned long *parameters, unsigned lo
            unsigned int, tag,
            uint8_t *,    buffer,
            size_t,       length);
-
-  SYSCALL1(os_ux, "(%p)", bolos_ux_params_t *, params);
 
   SYSCALL0(try_context_get);
 

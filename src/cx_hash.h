@@ -215,6 +215,7 @@ int cx_sha512_init(cx_sha512_t *hash);
 int cx_sha512_final(cx_sha512_t *ctx, uint8_t *digest);
 int cx_sha512_update(cx_sha512_t *ctx, const uint8_t *data, size_t len);
 int cx_sha512_validate_context(const cx_sha512_t *ctx);
+int cx_hash_sha512(const uint8_t *data, size_t len, uint8_t *digest, size_t digest_len);
 
 int cx_ripemd160_init(cx_ripemd160_t  *hash);
 int cx_ripemd160_update(cx_ripemd160_t *ctx, const uint8_t *data, size_t len);
@@ -248,9 +249,11 @@ int sys_cx_hash_sha256(const unsigned char *in, unsigned int len,
 #define sys_cx_blake2b_init   cx_blake2b_init
 #define sys_cx_blake2b_init2  cx_blake2b_init2
 #define sys_cx_sha256_init    cx_sha256_init
+#define sys_cx_sha512_init    cx_sha512_init
 #define sys_cx_ripemd160_init cx_ripemd160_init
 #define sys_cx_keccak_init    cx_keccak_init
 #define sys_cx_sha3_init      cx_sha3_init
 #define sys_cx_sha3_xof_init  cx_sha3_xof_init
+#define sys_cx_hash_sha512    cx_hash_sha512
 
 #endif

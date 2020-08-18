@@ -23,7 +23,10 @@
 
 #include "cursor.h"
 
-#define DEFAULT_PORT	  5900
+#ifndef DISABLE_SANDBOX
+#include "seccomp-bpf.h"
+#endif
+
 #define DEFAULT_WIDTH	  320
 #define DEFAULT_HEIGHT	  480
 
@@ -118,18 +121,9 @@ static void ptrAddEvent(int buttonMask, int x, int y, rfbClientPtr cl)
     prev_pressed = pressed;
 }
 
-/*
- * A keyboard event was received by the VNC server, forward it to speculos.
- *
- * The mouse event structure is reuse, it should actually be an union.
- */
-static void kbdAddEvent(rfbBool down, rfbKeySym keySym, rfbClientPtr cl)
+static void kbdAddEventHelpher(rfbBool down, rfbKeySym keySym)
 {
     struct mouse_event event;
-
-#ifdef CUSTOM_CURSOR
-    handle_konami_code(down, keySym);
-#endif
 
     if (keySym != XK_Left && keySym != XK_Right) {
         return;
@@ -147,6 +141,25 @@ static void kbdAddEvent(rfbBool down, rfbKeySym keySym, rfbClientPtr cl)
     fflush(stdout);
 }
 
+/*
+ * A keyboard event was received by the VNC server, forward it to speculos.
+ *
+ * The mouse event structure is reuse, it should actually be an union.
+ */
+static void kbdAddEvent(rfbBool down, rfbKeySym keySym, rfbClientPtr cl)
+{
+#ifdef CUSTOM_CURSOR
+    handle_konami_code(down, keySym);
+#endif
+
+    if (keySym == XK_Down) {
+        kbdAddEventHelpher(down, XK_Left);
+        kbdAddEventHelpher(down, XK_Right);
+    } else if (keySym == XK_Left || keySym == XK_Right) {
+        kbdAddEventHelpher(down, keySym);
+    }
+}
+
 /* Speculos updated its framebuffer, update the local one. */
 static void draw_point(int x, int y, int color)
 {
@@ -157,32 +170,108 @@ static void draw_point(int x, int y, int color)
 
 static void usage(char *argv0)
 {
-    fprintf(stderr, "Usage: %s [-s <size] [-p <port>] [-v]\n\n"
-            "-p <port>: tcp port (default: %d)\n"
+    fprintf(stderr, "Usage: %s [-s <size] [-v] -- [libvncserver options]\n\n"
             "-s <size>: screen size (default: %dx%d)\n"
             "-v:        verbose (display libvncserver logs, default: false)\n",
             argv0,
-            DEFAULT_PORT,
             DEFAULT_WIDTH, DEFAULT_HEIGHT);
     exit(EXIT_FAILURE);
 }
 
-static int parse_size(char *s, unsigned int *width, unsigned int *height)
+static int parse_size(char *s, unsigned int *new_width, unsigned int *new_height)
 {
-    return sscanf(s, "%ux%u", width, height) != 2;
+    return sscanf(s, "%ux%u", new_width, new_height) != 2;
+}
+
+static int load_seccomp(void)
+{
+#ifndef DISABLE_SANDBOX
+    struct sock_filter filter[] = {
+        /* Validate architecture. */
+        VALIDATE_ARCHITECTURE,
+        /* Grab the system call number. */
+        EXAMINE_SYSCALL,
+        /* List allowed syscalls. */
+        ALLOW_SYSCALL(accept),
+        ALLOW_SYSCALL(access),
+        ALLOW_SYSCALL(bind),
+        ALLOW_SYSCALL(brk),
+        ALLOW_SYSCALL(close),
+        ALLOW_SYSCALL(exit_group),
+        ALLOW_SYSCALL(fcntl),
+        ALLOW_SYSCALL(futex),
+        ALLOW_SYSCALL(getpeername),
+        ALLOW_SYSCALL(getpid),
+        ALLOW_SYSCALL(getrandom),
+        ALLOW_SYSCALL(listen),
+        ALLOW_SYSCALL(mmap),
+        ALLOW_SYSCALL(munmap),
+        ALLOW_SYSCALL(prlimit64),
+        ALLOW_SYSCALL(read),
+        ALLOW_SYSCALL(recvfrom),
+        ALLOW_SYSCALL(rt_sigaction),
+        ALLOW_SYSCALL(rt_sigprocmask),
+        ALLOW_SYSCALL(select),
+        ALLOW_SYSCALL(setsockopt),
+        ALLOW_SYSCALL(shutdown),
+        ALLOW_SYSCALL(socket),
+        ALLOW_SYSCALL(stat),
+        ALLOW_SYSCALL(uname),
+        ALLOW_SYSCALL(write),
+        KILL_PROCESS,
+    };
+
+    struct sock_fprog prog = {
+        .len = (unsigned short)(sizeof(filter)/sizeof(filter[0])),
+        .filter = filter,
+    };
+
+    if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)) {
+        warn("prctl(NO_NEW_PRIVS)");
+        return -1;
+    }
+
+    if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog)) {
+        warn("prctl(SECCOMP)");
+        return -1;
+    }
+#endif
+
+    return 0;
+}
+
+/* The libvncserver logging function rfbDefaultLog() calls localtime() which
+ * open /etc/localtime. Since the openat syscall is forbidden by seccomp, the
+ * VNC server is killed when verbose is true.
+ *
+ * Workaround: let the libc read this file before loading the seccomp filter.  */
+static void preload_localtime(void)
+{
+    time_t log_clock;
+
+    time(&log_clock);
+    localtime(&log_clock);
 }
 
 int main(int argc, char **argv)
 {
+    int libvnc_argc, nfds, opt;
     struct draw_event event;
     struct timeval timeout;
-    int nfds, opt, port;
     sigset_t mask;
     bool verbose;
     fd_set fds;
+    size_t framebuffer_size;
+
+    preload_localtime();
+
+    if (load_seccomp() != 0) {
+        fprintf(stderr, "failed to load seccomp\n");
+        return EXIT_FAILURE;
+    }
 
     verbose = false;
-    port = DEFAULT_PORT;
+    opterr = 0;
 
     while ((opt = getopt(argc, argv, "s:p:v")) != -1) {
         switch (opt) {
@@ -191,9 +280,6 @@ int main(int argc, char **argv)
                 fprintf(stderr, "invalid size (%s)\n", optarg);
                 return EXIT_FAILURE;
             }
-            break;
-        case 'p':
-            port = atoi(optarg);
             break;
         case 'v':
             verbose = true;
@@ -204,21 +290,25 @@ int main(int argc, char **argv)
         }
     }
 
-    rfbLogEnable(verbose);
-
-    framebuffer = malloc(width * height * bytes_per_pixel);
+    framebuffer_size = ((size_t)width) * ((size_t) height) * ((size_t)bytes_per_pixel);
+    framebuffer = malloc(framebuffer_size);
     if (framebuffer == NULL) {
         err(1, "malloc");
     }
     /* initialize the framebuffer to white */
-    memset(framebuffer, 0xff, width * height * bytes_per_pixel);
+    memset(framebuffer, 0xff, framebuffer_size);
 
-    screen = rfbGetScreen(&argc, argv, width, height, bits_per_sample, samples_per_pixel, bytes_per_pixel);
+    /* Pass remaining options (after "--") to rfbGetScreen. The first argument
+     * will be invalid (either "--" or the last option given) but it's
+     * considered as the filename and eventually ignored. */
+    opterr = 1;
+    libvnc_argc = argc - optind + 1;
+
+    rfbLogEnable(verbose);
+    screen = rfbGetScreen(&libvnc_argc, &argv[optind-1], width, height, bits_per_sample, samples_per_pixel, bytes_per_pixel);
 
     screen->kbdAddEvent = kbdAddEvent;
     screen->ptrAddEvent = ptrAddEvent;
-    screen->port = port;
-    screen->ipv6port = port;
 
 #ifdef CUSTOM_CURSOR
     {

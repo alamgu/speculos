@@ -6,17 +6,35 @@ true color: 24 bbp).
 '''
 
 import os
+import logging
 import subprocess
 import sys
 
 from .display import MODELS
 
 class VNC:
-    def __init__(self, port, model):
+    def __init__(self, port, model, password=None, verbose=False):
+        self.logger = logging.getLogger("vnc")
+
         width, height = MODELS[model].screen_size
         path = os.path.dirname(os.path.realpath(__file__))
         server = os.path.join(path, '../build/vnc/vnc_server')
-        cmd = [ server, '-p', str(port), '-s', f'{width}x{height}' ]
+        cmd = [ server ]
+
+        # custom options
+        cmd += [ '-s', f'{width}x{height}' ]
+        if verbose:
+            cmd += [ '-v' ]
+
+        # libvncserver options
+        cmd += [
+            '--',
+            '-rfbport', f'{port}',
+            '-rfbportv6', f'{port}',
+        ]
+        if password is not None:
+            cmd += [ '-passwd', password ]
+
         self.p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
 
         # required by Screen.add_notifier
@@ -53,7 +71,7 @@ class VNC:
         while len(data) != 6:
             tmp = self.p.stdout.read(6 - len(data))
             if not tmp:
-                print("connection with vnc stdout closed")
+                self.logger.info("connection with vnc stdout closed")
                 sys.exit(0)
             data += tmp
 
@@ -69,4 +87,4 @@ class VNC:
             pressed = (data[4] == 0x11)
             screen.seph.handle_button(button, pressed)
         else:
-            print('invalid message from the VNC server')
+            self.logger.error("invalid message from the VNC server")

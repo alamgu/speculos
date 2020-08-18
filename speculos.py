@@ -8,18 +8,22 @@ import argparse
 import binascii
 import ctypes
 from elftools.elf.elffile import ELFFile
+import logging
 from mnemonic import mnemonic
 import os
 import re
 import signal
 import socket
 import sys
+import threading
 
 import pkg_resources
 
 from mcu import apdu as apdu_server
+from mcu import automation
 from mcu import display
 from mcu import seproxyhal
+from mcu.automation_server import AutomationClient, AutomationServer
 from mcu.button_tcp import FakeButton
 from mcu.finger_tcp import FakeFinger
 from mcu.vnc import VNC
@@ -48,7 +52,7 @@ def get_elf_infos(app_path):
         if sym_estack is None:
             sym_estack = symtab.get_symbol_by_name('END_STACK')
         if sym_estack is None:
-            print('[-] failed to find _estack/END_STACK symbol', file=sys.stderr)
+            logger.error('failed to find _estack/END_STACK symbol')
             sys.exit(1)
         estack = sym_estack[0]['st_value']
         supp_ram = elf.get_section_by_name('.rfbss')
@@ -80,9 +84,10 @@ def run_qemu(s1, s2, app_path, libraries=[], seed=DEFAULT_SEED, debug=False, tra
         if (ram_addr, ram_size) != (0, 0):
             arg = f'{ram_addr:#x}:{ram_size:#x}'
             if extra_ram and arg != extra_ram:
-                print("[-] Error: different extra RAM pages for main app and/or libraries!")
+                logger.error("different extra RAM pages for main app and/or libraries!")
                 sys.exit(1)
-        args.append(f'{name}:{lib_path}:{hex(load_offset)}:{hex(load_size)}:{hex(stack)}:{hex(stack_size)}')
+            extra_ram = arg
+        args.append(f'{name}:{lib_path}:{load_offset:#x}:{load_size:#x}:{stack:#x}:{stack_size:#x}')
 
     if model == 'blue':
         if ram_arg:
@@ -113,23 +118,41 @@ def run_qemu(s1, s2, app_path, libraries=[], seed=DEFAULT_SEED, debug=False, tra
     if deterministic_rng:
         os.environ['RNG_SEED'] = deterministic_rng
 
-    #print('[*] seproxyhal: executing qemu', file=sys.stderr)
+    logger.debug(f"executing qemu: {args}")
     try:
         os.execvp(args[0], args)
     except FileNotFoundError:
-        print('[-] failed to execute qemu: "%s" not found' % args[0], file=sys.stderr)
+        logger.error('failed to execute qemu: "%s" not found' % args[0])
         sys.exit(1)
     sys.exit(0)
 
+def setup_logging(args):
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s.%(msecs)03d:%(name)s: %(message)s', datefmt='%H:%M:%S')
+
+    for arg in args.log_level:
+        if ":" not in arg:
+            logging.getLogger("speculos").error(f"invalid --log argument {arg}")
+            sys.exit(1)
+        name, level = arg.split(":", 1)
+        logger = logging.getLogger(name)
+        try:
+            logger.setLevel(level)
+        except ValueError as e:
+            logging.getLogger("speculos").error(f"invalid --log argument: {e}")
+            sys.exit(1)
+
+    return logging.getLogger("speculos")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Emulate Ledger Nano/Blue apps.')
     parser.add_argument('app.elf', type=str, help='application path')
+    parser.add_argument('--automation', type=str, help='Load a JSON document automating actions (prefix with "file:" to specify a path'),
     parser.add_argument('--color', default='MATTE_BLACK', choices=list(display.COLORS.keys()), help='Nano color')
     parser.add_argument('-d', '--debug', action='store_true', help='Wait gdb connection to port 1234')
     parser.add_argument('--deterministic-rng', default="", help='Seed the rng with a given value to produce deterministic randomness')
     parser.add_argument('-k', '--sdk', default='1.6', help='SDK version')
     parser.add_argument('-l', '--library', default=[], action='append', help='Additional library (eg. Bitcoin:app/btc.elf) which can be called through os_lib_call')
+    parser.add_argument('--log-level', default=[], action='append', help='Configure the logger levels (eg. usb:DEBUG), can be specified multiple times')
     parser.add_argument('-m', '--model', default='nanos', choices=list(display.MODELS.keys()))
     parser.add_argument('-r', '--rampage', help='Additional RAM page and size available to the app (eg. 0x123000:0x100). Supercedes the internal probing for such page.')
     parser.add_argument('-s', '--seed', default=DEFAULT_SEED, help='BIP39 mnemonic or hex seed. Default to mnemonic: to use a hex seed, prefix it with "hex:"')
@@ -137,7 +160,9 @@ if __name__ == '__main__':
 
     group = parser.add_argument_group('network arguments')
     group.add_argument('--apdu-port', default=9999, type=int, help='ApduServer TCP port')
+    group.add_argument('--automation-port', type=int, help='Forward text displayed on the screen to TCP clients'),
     group.add_argument('--vnc-port', type=int, help='Start a VNC server on the specified port')
+    group.add_argument('--vnc-password', type=str, help='VNC plain-text password (required for MacOS Screen Sharing)')
     group.add_argument('--button-port', type=int, help='Spawn a TCP server on the specified port to receive button press (lLrR)')
     group.add_argument('--finger-port', type=int, help='Spawn a TCP server on the specified port to receive finger touch (x,y,pressed)+')
 
@@ -151,32 +176,38 @@ if __name__ == '__main__':
     args = parser.parse_args()
     args.model.lower()
 
+    logger = setup_logging(args)
+
     rendering = display.RENDER_METHOD.FLUSHED
     if args.progressive:
         rendering = display.RENDER_METHOD.PROGRESSIVE
 
     if args.rampage:
         if args.model != 'blue':
-            print("[-] Extra RAM page arguments -r (--rampage) require '-m blue'", file=sys.stderr)
+            logger.error("extra RAM page arguments -r (--rampage) require '-m blue'")
             sys.exit(1)
         if not re.match('(0x)?[0-9a-fA-F]+:(0x)?[0-9a-fA-F]+$', args.rampage):
-            print("[-] Invalid ram page argument", file=sys.stderr)
+            logger.error("invalid ram page argument")
             sys.exit(1)
 
     if args.display == 'text' and args.model != 'nanos':
-        print(f"[-] Error: Unsupported model '{args.model}' with argument -x", file=sys.stderr)
+        logger.error(f"unsupported model '{args.model}' with argument -x")
         sys.exit(1)
 
     if args.ontop and args.display != 'qt':
-        print("[-] -o (--ontop) can only be used with --display qt", file=sys.stderr)
+        logger.error("-o (--ontop) can only be used with --display qt")
         sys.exit(1)
 
     if args.zoom and args.display != 'qt':
-        print("[-] -z (--zoom) can only be used with --display qt", file=sys.stderr)
+        logger.error("-z (--zoom) can only be used with --display qt")
         sys.exit(1)
 
     if args.keymap and args.display != 'text':
-        print("[-] -y (--keymap) can only be used with --display text", file=sys.stderr)
+        logger.error("-y (--keymap) can only be used with --display text")
+        sys.exit(1)
+
+    if args.vnc_password and not args.vnc_port:
+        logger.error("--vnc-password can only be used with --vnc-port")
         sys.exit(1)
 
     if args.display == 'text':
@@ -186,13 +217,23 @@ if __name__ == '__main__':
     else:
         from mcu.screen import QtScreen as Screen
 
+    automation_path = None
+    if args.automation:
+        automation_path = automation.Automation(args.automation)
+
+    automation_server = None
+    if args.automation_port:
+        automation_server = AutomationServer(("0.0.0.0", args.automation_port), AutomationClient)
+        automation_thread = threading.Thread(target=automation_server.serve_forever, daemon=True)
+        automation_thread.start()
+
     s1, s2 = socket.socketpair()
 
     run_qemu(s1, s2, getattr(args, 'app.elf'), args.library, args.seed, args.debug, args.trace, args.deterministic_rng, args.model, args.rampage, args.sdk)
     s1.close()
 
     apdu = apdu_server.ApduServer(host="0.0.0.0", port=args.apdu_port)
-    seph = seproxyhal.SeProxyHal(s2)
+    seph = seproxyhal.SeProxyHal(s2, automation=automation_path, automation_server=automation_server)
 
     button_tcp = None
     if args.button_port:
@@ -204,7 +245,7 @@ if __name__ == '__main__':
 
     vnc = None
     if args.vnc_port:
-        vnc = VNC(args.vnc_port, args.model)
+        vnc = VNC(args.vnc_port, args.model, args.vnc_password)
 
     zoom = args.zoom
     if zoom is None:
