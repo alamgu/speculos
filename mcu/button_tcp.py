@@ -41,7 +41,8 @@ class FakeButtonClient:
                 key, pressed = self.actions[c]
                 self.logger.debug(f"button {key} release: {pressed}")
                 screen.seph.handle_button(key, pressed)
-                time.sleep(0.1)
+            elif c == 't':
+                screen.seph.packet_thread.add_tick()
             else:
                 self.logger.debug(f"ignoring byte {c!r}")
 

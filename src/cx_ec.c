@@ -285,9 +285,9 @@ int sys_cx_eddsa_get_public_key(const cx_ecfp_private_key_t *pv_key, cx_md_t has
     return -1;
   }
 
-  cx_compress(p + 1, size);
-  memmove(p + 1, p + 1 + size, size);
-  p[0] = 0x02;
+  //cx_compress(p + 1, size);
+  //memmove(p + 1, p + 1 + size, size);
+  //p[0] = 0x02;
   return 0;
 }
 

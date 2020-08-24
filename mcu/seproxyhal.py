@@ -99,8 +99,8 @@ class PacketThread(threading.Thread):
         # Don't add too many ticker packets to the queue. For instance, the app
         # might be stuck if a breakpoint is hit within a debugger. It avoids
         # flooding the app on resume.
-        if self.queue.count(self.TICKER_PACKET) > 10:
-            return False
+        #if self.queue.count(self.TICKER_PACKET) > 10:
+        #    return False
 
         self.queue_packet(SephTag.TICKER_EVENT)
         return True
