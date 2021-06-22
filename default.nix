@@ -52,13 +52,13 @@ rec {
 
   inherit (speculosPkgs) speculosLauncher;
 
-  speculos = pkgs.callPackage ({ stdenv, python36, qemu, makeWrapper }: stdenv.mkDerivation {
+  speculos = pkgs.callPackage ({ stdenv, python3, qemu, makeWrapper }: stdenv.mkDerivation {
     name = "speculos";
     inherit src;
     buildPhase = "";
     nativeBuildInputs = [ makeWrapper ];
     buildInputs = [
-      (python36.withPackages (ps: with ps; [
+      (python3.withPackages (ps: with ps; [
         pyqt5
         construct
         mnemonic
