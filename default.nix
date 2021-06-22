@@ -22,7 +22,7 @@ rec {
     config = { allowUnsupportedSystem = true; };
     overlays = [
       (self: super: rec {
-        speculosLauncher = speculosPkgs.callPackage ({ stdenv, cmake, ninja, perl, pkg-config, openssl, cmocka }: stdenv.mkDerivation {
+        speculosLauncher = self.callPackage ({ stdenv, cmake, ninja, perl, pkg-config, openssl, cmocka }: stdenv.mkDerivation {
           name = "speculos";
 
           inherit src;
@@ -45,8 +45,6 @@ rec {
           '';
 
           makeFlags = [ "emu" "launcher" ];
-
-          #patches = [ ./speculos.patch ];
         }) {};
       })
     ];
@@ -58,7 +56,18 @@ rec {
     name = "speculos";
     inherit src;
     buildPhase = "";
-    buildInputs = [ (python36.withPackages (ps: with ps; [pyqt5 construct mnemonic pyelftools setuptools jsonschema])) qemu makeWrapper ];
+    nativeBuildInputs = [ makeWrapper ];
+    buildInputs = [
+      (python36.withPackages (ps: with ps; [
+        pyqt5
+        construct
+        mnemonic
+        pyelftools
+        setuptools
+        jsonschema
+      ]))
+      qemu
+    ];
     installPhase = ''
     mkdir $out
     cp -a $src/speculos.py $out/
