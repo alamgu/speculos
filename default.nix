@@ -11,6 +11,7 @@ rec {
 
   speculosPkgs = import pkgs.path {
     crossSystem = {
+      isStatic = true;
       config = "armv6l-unknown-linux-gnueabihf";
       #config = "armv6l-unknown-linux-musleabihf";
       #useLLVM = true;

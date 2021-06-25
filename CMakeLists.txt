@@ -47,7 +47,7 @@ add_library(cmocka UNKNOWN IMPORTED)
 include_directories(${INSTALL_DIR}/include)
 link_directories(${INSTALL_DIR}/lib)
 
-link_libraries(ssl crypto dl)
+link_libraries(ssl crypto dl pthread)
 
 add_subdirectory(src)
 add_subdirectory(tests/syscalls)
