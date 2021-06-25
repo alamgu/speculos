@@ -14,7 +14,7 @@ option(WITH_VNC "Support for VNC" OFF)
 # add_compile_options(-mthumb -W -Wall -fPIC -march=armv6t2+vfpv2)
 add_definitions(-DOS_LITTLE_ENDIAN -DNATIVE_64BITS)
 
-find_library(openssl REQUIRED)
+add_library(openssl UNKNOWN IMPORTED)
 
 option(
   CODE_COVERAGE
