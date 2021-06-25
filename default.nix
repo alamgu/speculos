@@ -3,7 +3,9 @@
 rec {
 
   src = pkgs.lib.cleanSourceWith {
-    filter = path: type: !(builtins.any (x: x == baseNameOf path) ["result" ".git" "tags" "TAGS" "dist"]);
+    filter = path: type: !(builtins.any (x: x == baseNameOf path) [
+      "default.nix" "result" ".git" "tags" "TAGS" "dist"
+    ]);
     src = ./.;
   };
 
