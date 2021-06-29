@@ -12,9 +12,12 @@ rec {
   inherit (pkgs) lib;
 
   src = lib.cleanSourceWith {
-    filter = path: type: !(builtins.any (x: x == baseNameOf path) [
-      "default.nix" "result" ".git" "tags" "TAGS" "dist"
-    ]);
+    filter = path: type: let
+        baseName = baseNameOf path;
+      in !(builtins.any (x: x == baseName) [
+        "result" ".git" "tags" "TAGS" "dist"
+      ] || lib.hasPrefix "result" baseName
+        || lib.hasSuffix ".nix" baseName);
     src = ./.;
   };
 
@@ -34,11 +37,6 @@ rec {
       openssl
       cmocka
     ];
-
-    installPhase = ''
-      mkdir $out
-      cp -a $cmakeDir/build/src/launcher $out/
-    '';
 
     makeFlags = [ "emu" "launcher" ];
   }) {};
