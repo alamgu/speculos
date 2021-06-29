@@ -54,6 +54,10 @@ rec {
         pyelftools
         setuptools
         jsonschema
+        flask
+        flask-restful
+        pillow
+        requests
       ]))
       qemu
     ];
@@ -63,6 +67,7 @@ rec {
       install -d $out/bin
       ln -s $out/speculos.py $out/bin/speculos.py
       cp -a $src/mcu $out/mcu
+      cp -a api $out/api
       install -d $out/libexec
       ln -s ${speculosLauncher}/bin/launcher $out/libexec/launcher
       makeWrapper $out/speculos.py $out/bin/speculos --set PATH $PATH
