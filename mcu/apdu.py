@@ -9,11 +9,12 @@ import errno
 import logging
 import socket
 
+
 class ApduServer:
     def __init__(self, host='127.0.0.1', port=9999, hid=False):
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.s.bind((host, port))
+        self.s.bind((host, port))  # lgtm [py/bind-socket-all-network-interfaces]
         self.s.listen()
 
         self.client = None
@@ -26,7 +27,9 @@ class ApduServer:
         screen.add_notifier(self.client)
 
     def forward_to_client(self, packet):
-        self.client.forward_to_client(packet)
+        if self.client is not None:
+            self.client.forward_to_client(packet)
+
 
 class ApduClient:
     def __init__(self, s):
@@ -78,7 +81,7 @@ class ApduClient:
 
         self.logger.info("< {}".format(packet.hex()))
 
-        size = len(packet) - 2
+        size = (len(packet) - 2) & 0xffffffff
         packet = size.to_bytes(4, 'big') + packet
         try:
             self.s.sendall(packet)

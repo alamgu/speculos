@@ -2,8 +2,8 @@
 
 name: Continuous Integration
 
-# Controls when the action will run. Triggers the workflow on push or pull request
-# events but only for the master branch
+# Controls when the action will run. Triggers the workflow on push or pull
+# request events but only for the master branch
 on:
   push:
     branches: [ master ]
@@ -14,15 +14,36 @@ jobs:
   build:
     name: Clone, build, test
     runs-on: ubuntu-latest
+    permissions:
+      packages: write
 
-    # Use https://hub.docker.com/r/ledgerhq/speculos-builder which has all the
-    # required dependencies
+    # Use https://ghcr.io/ledgerhq/speculos-builder which has all the required
+    # dependencies
     container:
-      image: docker://ledgerhq/speculos-builder:latest
+      image: docker://ghcr.io/ledgerhq/speculos-builder:latest
 
     steps:
     - name: Clone
       uses: actions/checkout@v2
+
+    - name: Lint C code
+      uses: DoozyX/clang-format-lint-action@v0.11
+      with:
+        source: 'src tests'
+        extensions: 'c,h'
+        clangFormatVersion: 11
+        fail_ci_if_error: true
+
+    - name: Lint Python code
+      run: find . -type f -name '*.py' -exec flake8 --max-line-length=120 '{}' '+'
+
+    - name: Check misspellings
+      uses: codespell-project/actions-codespell@de089481bd65b71b4d02e34ffb3566b6d189333e
+      with:
+        builtin: clear,rare
+        check_filenames: true
+        ignore_words_file: .codespell-ignore
+        skip: ./api/swagger/swagger-ui.css,./api/swagger/swagger-ui-bundle.js,./api/swagger/swagger-ui-standalone-preset.js
 
     - name: Build
       run: |
@@ -34,11 +55,27 @@ jobs:
         CTEST_OUTPUT_ON_FAILURE: 1
       run: |
         make -C build/ test
-        pytest
+        python3 -m pytest
+
+    - name: Build and publish to GitHub Packages
+      if: success() && github.event_name == 'push' && github.ref == 'refs/heads/master'
+      uses: docker/build-push-action@v1
+      with:
+        repository: ledgerhq/speculos
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        tag_with_sha: true
+        tags: latest
+
+    - name: Apply DockerHub deprecation patch
+      if: success() && github.event_name == 'push' && github.ref == 'refs/heads/master'
+      run: patch < tools/deprecate-dockerhub.patch
 
     - name: Publish to DockerHub
       if: success() && github.event_name == 'push' && github.ref == 'refs/heads/master'
       uses: docker/build-push-action@v1
+      continue-on-error: true
       with:
         repository: ledgerhq/speculos
         dockerfile: Dockerfile
@@ -46,6 +83,10 @@ jobs:
         password: ${{ secrets.dockerhub_password }}
         tag_with_sha: true
         tags: latest
+
+    - name: Reverse the DockerHub deprecation patch
+      if: success() && github.event_name == 'push' && github.ref == 'refs/heads/master'
+      run: patch --reverse < tools/deprecate-dockerhub.patch
 
     - name: Rebuild with code coverage instrumentation
       env:
@@ -56,10 +97,8 @@ jobs:
         make -C build clean
         make -C build
         make -C build test
-        pytest
+        python3 -m pytest
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v1
       with:
-        token: ${{ secrets.CODECOV_TOKEN }}
         name: codecov-speculos
-        fail_ci_if_error: true

@@ -3,13 +3,16 @@
 
 #include "emulate.h"
 
+#include "bolos/cx_aes.h"
 #include "bolos_syscalls_1.5.h"
 
-int emulate_1_5(unsigned long syscall, unsigned long *parameters, unsigned long *ret, bool verbose)
+int emulate_1_5(unsigned long syscall, unsigned long *parameters,
+                unsigned long *ret, bool verbose)
 {
   int retid;
 
-  switch(syscall) {
+  switch (syscall) {
+    /* clang-format off */
   SYSCALL1(os_lib_call, "(%p)", unsigned long *, call_parameters);
 
   case SYSCALL_os_lib_end_ID_IN: {
@@ -51,7 +54,18 @@ int emulate_1_5(unsigned long syscall, unsigned long *parameters, unsigned long 
 
   SYSCALL1i(os_ux, "(%p)", bolos_ux_params_t *, params, os_ux_1_5);
 
+  SYSCALL8(cx_aes_iv, "(%p, 0x%x, %p, %u, %p, %u, %p, %u)",
+           const cx_aes_key_t *, key,
+           int,                  mode,
+           const uint8_t *,      iv,
+           unsigned int,         iv_len,
+           const uint8_t *,      in,
+           unsigned int,         len,
+           uint8_t *,            out,
+           unsigned int,         out_len);
+
   SYSCALL0(reset);
+    /* clang-format on */
 
   default:
     retid = emulate_common(syscall, parameters, ret, verbose);

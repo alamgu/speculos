@@ -1,14 +1,18 @@
 #include <err.h>
 #include <stdio.h>
 
-#include "emulate.h"
+#include "bolos/cx.h"
+#include "bolos/cx_aes.h"
 #include "bolos_syscalls_blue_2.2.5.h"
+#include "emulate.h"
 
-int emulate_blue_2_2_5(unsigned long syscall, unsigned long *parameters, unsigned long *ret, bool verbose)
+int emulate_blue_2_2_5(unsigned long syscall, unsigned long *parameters,
+                       unsigned long *ret, bool verbose)
 {
   int retid;
 
-  switch(syscall) {
+  switch (syscall) {
+    /* clang-format off */
   SYSCALL3(cx_crc16_update, "(%u, %p, %u)",
            unsigned short, crc, const void *, b, size_t, len);
 
@@ -47,6 +51,17 @@ int emulate_blue_2_2_5(unsigned long syscall, unsigned long *parameters, unsigne
   SYSCALL0i(os_global_pin_is_validated, os_global_pin_is_validated_1_5);
 
   SYSCALL1i(os_ux, "(%p)", bolos_ux_params_t *, params, os_ux_1_6);
+
+  SYSCALL8(cx_aes_iv, "(%p, 0x%x, %p, %u, %p, %u, %p, %u)",
+           const cx_aes_key_t *, key,
+           int,                  mode,
+           const uint8_t *,      iv,
+           unsigned int,         iv_len,
+           const uint8_t *,      in,
+           unsigned int,         len,
+           uint8_t *,            out,
+           unsigned int,         out_len);
+    /* clang-format on */
 
   default:
     retid = emulate_common(syscall, parameters, ret, verbose);

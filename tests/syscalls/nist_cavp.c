@@ -1,26 +1,30 @@
-#include "nist_cavp.h"
-#include "cx_hash.h"
-
 #include <malloc.h>
 #include <stdio.h>
 #include <string.h>
 
 #include <setjmp.h>
+// must come after setjmp.h
 #include <cmocka.h>
-#include "utils.h"
 
+#include "bolos/cx_hash.h"
+#include "nist_cavp.h"
+#include "utils.h"
 
 #define CX_MAX_DIGEST_SIZE CX_SHA512_SIZE
 
-void test_cavp_short_msg_with_size(const char *filename, cx_md_t md_type, size_t digest_size) {
+void test_cavp_short_msg_with_size(const char *filename, cx_md_t md_type,
+                                   size_t digest_size)
+{
   cx_hash_ctx ctx;
   char line[1024];
+  char *result;
 
   FILE *f = fopen(filename, "r");
   assert_non_null(f);
 
   while (!feof(f)) {
-    fgets(line, sizeof(line), f);
+    result = fgets(line, sizeof(line), f);
+    assert_non_null(result);
     char *pos1 = strchr(line, ':');
     assert_non_null(pos1);
     char *pos2 = strchr(pos1 + 1, ':');
@@ -51,14 +55,17 @@ void test_cavp_short_msg_with_size(const char *filename, cx_md_t md_type, size_t
 }
 
 void test_cavp_short_msg_with_single(const char *filename, single_hash_t hash,
-                                     size_t digest_size) {
+                                     size_t digest_size)
+{
   char line[1024];
+  char *result;
 
   FILE *f = fopen(filename, "r");
   assert_non_null(f);
 
   while (!feof(f)) {
-    fgets(line, sizeof(line), f);
+    result = fgets(line, sizeof(line), f);
+    assert_non_null(result);
     char *pos1 = strchr(line, ':');
     assert_non_null(pos1);
     char *pos2 = strchr(pos1 + 1, ':');
@@ -88,8 +95,11 @@ void test_cavp_short_msg_with_single(const char *filename, single_hash_t hash,
 
 #define MAX_CAVP_LINE_LENGTH 65536
 
-void test_cavp_long_msg_with_size(const char *filename, cx_md_t md_type, size_t digest_size) {
+void test_cavp_long_msg_with_size(const char *filename, cx_md_t md_type,
+                                  size_t digest_size)
+{
   cx_hash_ctx ctx;
+  char *result;
   char *line = malloc(MAX_CAVP_LINE_LENGTH);
   assert_non_null(line);
 
@@ -97,7 +107,8 @@ void test_cavp_long_msg_with_size(const char *filename, cx_md_t md_type, size_t 
   assert_non_null(f);
 
   while (!feof(f)) {
-    fgets(line, MAX_CAVP_LINE_LENGTH, f);
+    result = fgets(line, MAX_CAVP_LINE_LENGTH, f);
+    assert_non_null(result);
     char *pos1 = strchr(line, ':');
     assert_non_null(pos1);
     char *pos2 = strchr(pos1 + 1, ':');
@@ -133,7 +144,9 @@ void test_cavp_long_msg_with_size(const char *filename, cx_md_t md_type, size_t 
   free(line);
 }
 
-void test_cavp_monte_with_size(cx_md_t md_type, uint8_t *initial_seed, const uint8_t *expected_seed, size_t digest_size) {
+void test_cavp_monte_with_size(cx_md_t md_type, uint8_t *initial_seed,
+                               const uint8_t *expected_seed, size_t digest_size)
+{
   cx_hash_ctx ctx;
 
   uint8_t md0[CX_MAX_DIGEST_SIZE], md1[CX_MAX_DIGEST_SIZE],
@@ -165,23 +178,28 @@ void test_cavp_monte_with_size(cx_md_t md_type, uint8_t *initial_seed, const uin
   assert_memory_equal(seed, expected_seed, md_len);
 }
 
-void test_cavp_short_msg(const char *filename, cx_md_t md_type) {
+void test_cavp_short_msg(const char *filename, cx_md_t md_type)
+{
   const cx_hash_info_t *info = cx_hash_get_info(md_type);
   assert_non_null(info);
   assert_int_not_equal(info->output_size, 0);
   return test_cavp_short_msg_with_size(filename, md_type, info->output_size);
 }
 
-void test_cavp_long_msg(const char *filename, cx_md_t md_type) {
+void test_cavp_long_msg(const char *filename, cx_md_t md_type)
+{
   const cx_hash_info_t *info = cx_hash_get_info(md_type);
   assert_non_null(info);
   assert_int_not_equal(info->output_size, 0);
   return test_cavp_long_msg_with_size(filename, md_type, info->output_size);
 }
 
-void test_cavp_monte(cx_md_t md_type, uint8_t *initial_seed, const uint8_t *expected_seed) {
+void test_cavp_monte(cx_md_t md_type, uint8_t *initial_seed,
+                     const uint8_t *expected_seed)
+{
   const cx_hash_info_t *info = cx_hash_get_info(md_type);
   assert_non_null(info);
   assert_int_not_equal(info->output_size, 0);
-  return test_cavp_monte_with_size(md_type, initial_seed, expected_seed, info->output_size);
+  return test_cavp_monte_with_size(md_type, initial_seed, expected_seed,
+                                   info->output_size);
 }

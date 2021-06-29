@@ -1,3 +1,4 @@
+from collections import namedtuple
 import logging
 import sys
 import time
@@ -5,30 +6,41 @@ import threading
 from enum import IntEnum
 
 from . import usb
-from .display import RENDER_METHOD
+from .nanox_ocr import NanoXOCR
+from .readerror import ReadError, WriteError
+
 
 class SephTag(IntEnum):
-    BUTTON_PUSH_EVENT           = 0x05
-    FINGER_EVENT                = 0x0c
-    DISPLAY_PROCESSED_EVENT     = 0x0d
-    TICKER_EVENT                = 0x0e
-    CAPDU_EVENT                 = 0x16
+    BUTTON_PUSH_EVENT = 0x05
+    FINGER_EVENT = 0x0c
+    DISPLAY_PROCESSED_EVENT = 0x0d
+    TICKER_EVENT = 0x0e
+    CAPDU_EVENT = 0x16
 
-    MCU                         = 0x31
-    USB_CONFIG                  = 0x4f
-    USB_EP_PREPARE              = 0x50
+    MCU = 0x31
+    TAG_BLE_RADIO_POWER = 0x44
+    SE_POWER_OFF = 0x46
+    USB_CONFIG = 0x4f
+    USB_EP_PREPARE = 0x50
 
-    RAPDU                       = 0x53
-    GENERAL_STATUS              = 0x60
+    REQUEST_STATUS = 0x52
+    RAPDU = 0x53
+    PRINTC_STATUS = 0x5f
+
+    GENERAL_STATUS = 0x60
     GENERAL_STATUS_LAST_COMMAND = 0x0000
-    SCREEN_DISPLAY_STATUS       = 0x65
-    PRINTF_STATUS               = 0x66
-    SCREEN_DISPLAY_RAW_STATUS   = 0x69
+    SCREEN_DISPLAY_STATUS = 0x65
+    PRINTF_STATUS = 0x66
+    SCREEN_DISPLAY_RAW_STATUS = 0x69
 
-    FINGER_EVENT_TOUCH          = 0x01
-    FINGER_EVENT_RELEASE        = 0x02
+    FINGER_EVENT_TOUCH = 0x01
+    FINGER_EVENT_RELEASE = 0x02
+
 
 TICKER_DELAY = 0.1
+
+RenderMethods = namedtuple('RenderMethods', 'PROGRESSIVE FLUSHED')
+RENDER_METHOD = RenderMethods(0, 1)
 
 
 def ticker(add_tick):
@@ -49,6 +61,7 @@ def ticker(add_tick):
         else:
             flood = False
         time.sleep(TICKER_DELAY)
+
 
 class PacketThread(threading.Thread):
     TICKER_PACKET = (SephTag.TICKER_EVENT, b'')
@@ -122,10 +135,10 @@ class PacketThread(threading.Thread):
 
         self.logger.debug("exiting")
 
+
 class SeProxyHal:
-    def __init__(self, s, automation=None, automation_server=None):
+    def __init__(self, s, automation=None, automation_server=None, transport='hid'):
         self.s = s
-        self.last_ticker_sent_at = 0.0
         self.logger = logging.getLogger("seproxyhal")
         self.printf_queue = ''
         self.automation = automation
@@ -140,15 +153,24 @@ class SeProxyHal:
                                               args=(self.packet_thread.add_tick,),
                                               daemon=True)
         self.ticker_thread.start()
-        self.usb = usb.USB(self.packet_thread.queue_packet)
+        self.usb = usb.USB(self.packet_thread.queue_packet, transport=transport)
+
+        self.nanox_ocr = NanoXOCR()
+
+        # A list of callback methods when an APDU response is received
+        self.apdu_callbacks = []
 
     def _recvall(self, size):
         data = b''
         while size > 0:
-            tmp = self.s.recv(size)
+            try:
+                tmp = self.s.recv(size)
+            except ConnectionResetError:
+                tmp = b''
+
             if len(tmp) == 0:
                 self.logger.debug("fd closed")
-                sys.exit(1)
+                return None
             data += tmp
             size -= len(tmp)
         return data
@@ -158,49 +180,14 @@ class SeProxyHal:
 
         size = len(data).to_bytes(2, 'big')
         packet = tag.to_bytes(1, 'big') + size + data
-        #self.logger.debug("send {}" .format(packet.hex()))
         try:
             self.s.sendall(packet)
         except BrokenPipeError:
-            # the pipe is closed, which means the app exited
-            raise ServiceExit
-
-    def _send_ticker_event(self):
-        self.sending_ticker_event.release()
-        self.last_ticker_sent_at = time.time()
-        # don't send an event if a command is being processed
-        if self.status_received:
-            self._send_packet(SephTag.TICKER_EVENT)
-
-    def send_ticker_event_defered(self):
-        if self.sending_ticker_event.acquire(False):
-            self.sleep_time = TICKER_DELAY - (time.time() - self.last_ticker_sent_at)
-            if self.sleep_time > 0:
-                DeferedTicketEventSender(self, name = "DeferedTicketEvent").start()
-            else:
-                self._send_ticker_event()
-                self.status_received = False
-
-    def send_next_event(self):
-        # don't send an event if a command is being processed
-        if not self.status_received:
-            return
-
-        if len(self.queue) > 0:
-            # if we've received events from the outside world, send them
-            # whenever the SE is ready (i.e. now as we've received a
-            # GENERAL_STATUS)
-            tag, data = self.queue.pop(0)
-            self._send_packet(tag, data)
-            self.status_received = False
-        else:
-            # if no real event available in the queue, send a ticker event
-            # every 100ms
-            self.send_ticker_event_defered()
+            raise WriteError("Broken pipe, failed to send data to the app")
 
     def apply_automation(self, text, x, y):
         if self.automation_server:
-            event = { "text": text.decode("ascii", "ignore"), "x": x, "y": y }
+            event = {"text": text.decode("ascii", "ignore"), "x": x, "y": y}
             self.automation_server.broadcast(event)
 
         if self.automation:
@@ -220,6 +207,10 @@ class SeProxyHal:
                 else:
                     assert False
 
+    def _close(self, s, screen):
+        screen.remove_notifier(self.s.fileno())
+        self.s.close()
+
     def can_read(self, s, screen):
         '''
         Handle packet sent by the app.
@@ -230,19 +221,28 @@ class SeProxyHal:
         assert s == self.s.fileno()
 
         data = self._recvall(3)
+        if data is None:
+            self._close(s, screen)
+            raise ReadError("fd closed")
+
         tag = data[0]
         size = int.from_bytes(data[1:3], 'big')
 
         data = self._recvall(size)
+        if data is None:
+            self._close(s, screen)
+            raise ReadError("fd closed")
         assert len(data) == size
 
         self.logger.debug(f"received (tag: {tag:#04x}, size: {size:#04x}): {data!r}")
 
-        if tag & 0xf0 == SephTag.GENERAL_STATUS:
+        if tag & 0xf0 == SephTag.GENERAL_STATUS or tag == SephTag.PRINTC_STATUS:
             ret = None
             if tag == SephTag.GENERAL_STATUS:
                 if int.from_bytes(data[:2], 'big') == SephTag.GENERAL_STATUS_LAST_COMMAND:
-                    screen.screen_update()
+                    if screen.screen_update():
+                        if screen.model == "nanox":
+                            ret = self.nanox_ocr.get_text()
 
             elif tag == SephTag.SCREEN_DISPLAY_STATUS:
                 self.logger.debug(f"DISPLAY_STATUS {data!r}")
@@ -252,6 +252,8 @@ class SeProxyHal:
             elif tag == SephTag.SCREEN_DISPLAY_RAW_STATUS:
                 self.logger.debug("SephTag.SCREEN_DISPLAY_RAW_STATUS")
                 screen.display_raw_status(data)
+                if screen.model == "nanox":
+                    self.nanox_ocr.analyze_bitmap(data)
                 # https://github.com/LedgerHQ/nanos-secure-sdk/blob/1f2706941b68d897622f75407a868b60eb2be8d7/src/os_io_seproxyhal.c#L787
                 #
                 # io_seproxyhal_spi_recv() accepts any packet from the MCU after
@@ -265,8 +267,8 @@ class SeProxyHal:
                 if screen.rendering == RENDER_METHOD.PROGRESSIVE:
                     screen.screen_update()
 
-            elif tag == SephTag.PRINTF_STATUS:
-                for b in [ chr(b) for b in data ]:
+            elif tag == SephTag.PRINTF_STATUS or tag == SephTag.PRINTC_STATUS:
+                for b in [chr(b) for b in data]:
                     if b == '\n':
                         self.logger.info(f"printf: {self.printf_queue}")
                         self.printf_queue = ''
@@ -284,12 +286,14 @@ class SeProxyHal:
             self.status_event.set()
 
             # apply automation rules after having replied to the app
-            if ret != None:
-                text, x, y = ret
+            if ret is not None:
+                text, (x, y) = ret
                 self.apply_automation(text, x, y)
 
         elif tag == SephTag.RAPDU:
             screen.forward_to_apdu_client(data)
+            for c in self.apdu_callbacks:
+                c(data)
 
         elif tag == SephTag.USB_CONFIG:
             self.usb.config(data)
@@ -297,9 +301,23 @@ class SeProxyHal:
         elif tag == SephTag.USB_EP_PREPARE:
             data = self.usb.prepare(data)
             if data:
+                for c in self.apdu_callbacks:
+                    c(data)
                 screen.forward_to_apdu_client(data)
 
         elif tag == SephTag.MCU:
+            pass
+
+        elif tag == SephTag.TAG_BLE_RADIO_POWER:
+            self.logger.warn("ignoring BLE tag")
+
+        elif tag == SephTag.SE_POWER_OFF:
+            self.logger.warn("received tag SE_POWER_OFF, exiting")
+            self._close(s, screen)
+            raise ReadError("SE_POWER_OFF")
+
+        elif tag == SephTag.REQUEST_STATUS:
+            # Ignore calls to io_seproxyhal_request_mcu_status()
             pass
 
         else:
