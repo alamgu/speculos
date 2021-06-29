@@ -58,14 +58,14 @@ rec {
       qemu
     ];
     installPhase = ''
-    mkdir $out
-    cp -a $src/speculos.py $out/
-    install -d $out/bin
-    ln -s $out/speculos.py $out/bin/speculos.py
-    cp -a $src/mcu $out/mcu
-    install -d $out/build/src/
-    ln -s ${speculosLauncher}/launcher $out/build/src/launcher
-    makeWrapper $out/speculos.py $out/bin/speculos --set PATH $PATH
+      mkdir $out
+      cp -a $src/speculos.py $out/
+      install -d $out/bin
+      ln -s $out/speculos.py $out/bin/speculos.py
+      cp -a $src/mcu $out/mcu
+      install -d $out/libexec
+      ln -s ${speculosLauncher}/bin/launcher $out/libexec/launcher
+      makeWrapper $out/speculos.py $out/bin/speculos --set PATH $PATH
     '';
   }) {};
 
