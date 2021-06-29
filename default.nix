@@ -1,59 +1,47 @@
-{ pkgs ? import ../nixpkgs {}, gitDescribe ? "TEST-dirty", nanoXSdk ? null, ... }:
+{ pkgsFunc ? import <nixpkgs>
+, pkgs ? pkgsFunc {}
+, speculosPkgs ? pkgsFunc {
+    crossSystem = {
+      isStatic = true;
+      config = "armv6l-unknown-linux-gnueabihf";
+    };
+  }
+}:
 
 rec {
+  inherit (pkgs) lib;
 
-  src = pkgs.lib.cleanSourceWith {
+  src = lib.cleanSourceWith {
     filter = path: type: !(builtins.any (x: x == baseNameOf path) [
       "default.nix" "result" ".git" "tags" "TAGS" "dist"
     ]);
     src = ./.;
   };
 
-  speculosPkgs = import pkgs.path {
-    crossSystem = {
-      isStatic = true;
-      config = "armv6l-unknown-linux-gnueabihf";
-      #config = "armv6l-unknown-linux-musleabihf";
-      #useLLVM = true;
-      #platform = {
-      #  gcc = {
-      #    arch = "armv6t2";
-      #    fpu = "vfpv2";
-      #  };
-      #};
-    };
-    config = { allowUnsupportedSystem = true; };
-    overlays = [
-      (self: super: rec {
-        speculosLauncher = self.callPackage ({ stdenv, cmake, ninja, perl, pkg-config, openssl, cmocka }: stdenv.mkDerivation {
-          name = "speculos";
+  speculosLauncher = speculosPkgs.callPackage ({ stdenv, cmake, ninja, perl, pkg-config, openssl, cmocka }: stdenv.mkDerivation {
+    name = "speculos";
 
-          inherit src;
+    inherit src;
 
-          nativeBuildInputs = [ 
-            cmake
-            ninja
-            perl
-            pkg-config
-          ];
-
-          buildInputs = [
-            openssl
-            cmocka
-          ];
-
-          installPhase = ''
-            mkdir $out
-            cp -a $cmakeDir/build/src/launcher $out/
-          '';
-
-          makeFlags = [ "emu" "launcher" ];
-        }) {};
-      })
+    nativeBuildInputs = [
+      cmake
+      ninja
+      perl
+      pkg-config
     ];
-  };
 
-  inherit (speculosPkgs) speculosLauncher;
+    buildInputs = [
+      openssl
+      cmocka
+    ];
+
+    installPhase = ''
+      mkdir $out
+      cp -a $cmakeDir/build/src/launcher $out/
+    '';
+
+    makeFlags = [ "emu" "launcher" ];
+  }) {};
 
   speculos = pkgs.callPackage ({ stdenv, python3, qemu, makeWrapper }: stdenv.mkDerivation {
     name = "speculos";
