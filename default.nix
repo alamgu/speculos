@@ -65,7 +65,6 @@ rec {
       mkdir $out
       cp -a $src/speculos.py $out/
       install -d $out/bin
-      ln -s $out/speculos.py $out/bin/speculos.py
       cp -a $src/mcu $out/mcu
       cp -a api $out/api
       install -d $out/libexec
