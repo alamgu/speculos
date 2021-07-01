@@ -70,6 +70,8 @@ rec {
       cp -a api $out/api
       install -d $out/libexec
       ln -s ${speculosLauncher}/bin/launcher $out/libexec/launcher
+      install -d $out/cxlib
+      ln -s ${cxlib/cx-2.0.elf} $out/cxlib/cx-2.0.elf
       makeWrapper $out/speculos.py $out/bin/speculos --set PATH $PATH
     '';
   }) {};

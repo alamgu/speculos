@@ -32,7 +32,7 @@ from mcu.vnc import VNC
 DEFAULT_SEED = ('glory promote mansion idle axis finger extra february uncover one trip resource lawn turtle enact '
                 'monster seven myth punch hobby comfort wild raise skin')
 
-launcher_path = pkg_resources.resource_filename(__name__, "../libexec/launcher")
+launcher_path = pkg_resources.resource_filename(__name__, "/libexec/launcher")
 
 
 def set_pdeath(sig):
