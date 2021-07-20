@@ -9,7 +9,7 @@ include(ExternalProject)
 
 enable_testing()
 
-option(WITH_VNC "Support for VNC" OFF)
+# option(WITH_VNC "Support for VNC" OFF)
 
 # add_compile_options(-mthumb -W -Wall -fPIC -march=armv6t2+vfpv2)
 add_definitions(-DOS_LITTLE_ENDIAN -DNATIVE_64BITS -DGIT_REVISION=\"${GIT_REVISION}\")
@@ -52,10 +52,5 @@ link_libraries(ssl crypto dl pthread)
 add_subdirectory(src)
 add_subdirectory(tests/syscalls)
 
-if (WITH_VNC)
-    externalproject_add(vnc_server
-        SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/vnc"
-        BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/vnc"
-        INSTALL_COMMAND ""
-    )
-endif()
+# if (WITH_VNC)
+# endif()

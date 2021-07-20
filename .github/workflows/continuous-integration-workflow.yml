@@ -43,7 +43,7 @@ jobs:
         builtin: clear,rare
         check_filenames: true
         ignore_words_file: .codespell-ignore
-        skip: ./api/swagger/swagger-ui.css,./api/swagger/swagger-ui-bundle.js,./api/swagger/swagger-ui-standalone-preset.js
+        skip: ./speculos/api/swagger/swagger-ui.css,./speculos/api/swagger/swagger-ui-bundle.js,./speculos/api/swagger/swagger-ui-standalone-preset.js
 
     - name: Build
       run: |
@@ -57,6 +57,12 @@ jobs:
         make -C build/ test
         python3 -m pytest
 
+    - name: Use pip to install speculos in a virtual environment
+      run: |
+        python3 -m venv venv-test
+        ./venv-test/bin/pip install .
+        ./venv-test/bin/speculos --help
+
     - name: Build and publish to GitHub Packages
       if: success() && github.event_name == 'push' && github.ref == 'refs/heads/master'
       uses: docker/build-push-action@v1
@@ -67,26 +73,6 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
         tag_with_sha: true
         tags: latest
-
-    - name: Apply DockerHub deprecation patch
-      if: success() && github.event_name == 'push' && github.ref == 'refs/heads/master'
-      run: patch < tools/deprecate-dockerhub.patch
-
-    - name: Publish to DockerHub
-      if: success() && github.event_name == 'push' && github.ref == 'refs/heads/master'
-      uses: docker/build-push-action@v1
-      continue-on-error: true
-      with:
-        repository: ledgerhq/speculos
-        dockerfile: Dockerfile
-        username: ${{ secrets.dockerhub_username }}
-        password: ${{ secrets.dockerhub_password }}
-        tag_with_sha: true
-        tags: latest
-
-    - name: Reverse the DockerHub deprecation patch
-      if: success() && github.event_name == 'push' && github.ref == 'refs/heads/master'
-      run: patch --reverse < tools/deprecate-dockerhub.patch
 
     - name: Rebuild with code coverage instrumentation
       env:
