@@ -2,19 +2,25 @@ cmake_minimum_required(VERSION 3.10)
 
 project(Speculos C)
 
+include(CTest)
 include(ExternalProject)
 
-# set(CMAKE_C_COMPILER arm-linux-gnueabihf-gcc)
-# set(CMAKE_EXE_LINKER_FLAGS -static)
+if (CMAKE_TOOLCHAIN_FILE)
+  message(STATUS "Using toolchain ${CMAKE_TOOLCHAIN_FILE}")
+else ()
+  # # By default, use gcc cross-compiler for ARM-Thumb
+  # set(CMAKE_C_COMPILER arm-linux-gnueabihf-gcc)
+  # add_compile_options(-mthumb)
+  # message(STATUS "Using default compiler ${CMAKE_C_COMPILER}")
+endif ()
+# add_link_options(-static)
 
 enable_testing()
 
 # option(WITH_VNC "Support for VNC" OFF)
 
-# add_compile_options(-mthumb -W -Wall -fPIC -march=armv6t2+vfpv2)
+add_compile_options(-W -Wall -fPIC)
 add_definitions(-DOS_LITTLE_ENDIAN -DNATIVE_64BITS -DGIT_REVISION=\"${GIT_REVISION}\")
-
-add_library(openssl UNKNOWN IMPORTED)
 
 option(
   CODE_COVERAGE
@@ -42,7 +48,11 @@ endif()
 
 include_directories(sdk src)
 
-add_library(cmocka UNKNOWN IMPORTED)
+add_library(openssl UNKNOWN IMPORTED)
+
+if (BUILD_TESTING)
+  add_library(cmocka UNKNOWN IMPORTED)
+endif()
 
 include_directories(${INSTALL_DIR}/include)
 link_directories(${INSTALL_DIR}/lib)
@@ -50,7 +60,10 @@ link_directories(${INSTALL_DIR}/lib)
 link_libraries(ssl crypto dl pthread)
 
 add_subdirectory(src)
-add_subdirectory(tests/syscalls)
+
+if (BUILD_TESTING)
+  add_subdirectory(tests/syscalls)
+endif()
 
 # if (WITH_VNC)
 # endif()
