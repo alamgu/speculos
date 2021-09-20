@@ -23,7 +23,7 @@ api = Api(app)
 automation_events = []
 
 
-class Events:
+class EventsBroadcaster:
     """This used to be the 'Automation Server'."""
 
     def __init__(self):
@@ -48,7 +48,7 @@ class Events:
             self.condition.notify_all()
 
 
-events = Events()
+events = EventsBroadcaster()
 
 
 class ApiRunner:
@@ -153,8 +153,10 @@ class EventClient:
 
                 while self.events:
                     event = self.events.pop(0)
-                    data = json.dumps(event).encode()
-                    yield data + b"\n"
+                    data = json.dumps(event)
+                    # Format the event as specified in the specification:
+                    # https://html.spec.whatwg.org/multipage/server-sent-events.html#parsing-an-event-stream
+                    yield f"data: {data}\n\n".encode()
         finally:
             events.remove_client(self)
 
@@ -204,7 +206,7 @@ class Finger(Resource):
         return {}, 200
 
 
-class APDU:
+class APDUBridge:
     def __init__(self):
         # We want to be notified when APDU response is transmitted from the SE
         self.endpoint_lock = threading.Lock()
@@ -233,7 +235,7 @@ class APDU:
             self.response_condition.notify()
 
 
-apdu = APDU()
+apdu = APDUBridge()
 
 
 class APDU(Resource):
@@ -256,7 +258,9 @@ class Screenshot(Resource):
         image = Image.frombytes("RGB", screen_size, data)
         iobytes = io.BytesIO()
         image.save(iobytes, format="PNG")
-        return Response(iobytes.getvalue(), mimetype="image/png")
+        response = Response(iobytes.getvalue(), mimetype="image/png")
+        response.headers.add("Cache-control", "no-cache,no-store")
+        return response
 
 
 class Swagger(Resource):
