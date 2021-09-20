@@ -73,6 +73,9 @@ rec {
       mkdir -p "$resources_dir"
 	  ln -s ${launcher}/bin/launcher "$resources_dir/launcher"
       ln -s ${vnc_server}/bin/vnc_server "$resources_dir/vnc_server"
+      install -d $out/bin/
+      cp ${src}/tools/debug.sh "$out/bin/"
+      cp ${src}/tools/gdbinit "$out/bin/"
     '';
 
     postPatch = ''
