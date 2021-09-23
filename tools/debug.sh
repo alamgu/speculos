@@ -23,6 +23,7 @@ function main()
 
     cat >/tmp/x.gdb<<EOF
 source ${gdbinit}
+define connect
 set architecture arm
 target remote 127.0.0.1:1234
 handle SIGILL nostop pass noprint
@@ -30,7 +31,8 @@ add-symbol-file "${launcher_path}" ${launcher_text_addr}
 add-symbol-file "${app}" 0x40000000
 b *0x40000000
 c
-alias reconnect = target remote 127.0.0.1:1234
+end
+connect
 EOF
 
     gdb -q -nh -x /tmp/x.gdb
