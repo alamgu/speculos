@@ -11,15 +11,17 @@
 rec {
   inherit (pkgs) lib;
 
-  src = lib.cleanSourceWith {
+  mkCleanSrc = src: lib.cleanSourceWith {
     filter = path: type: let
         baseName = baseNameOf path;
       in !(builtins.any (x: x == baseName) [
         "result" ".git" "tags" "TAGS" "dist"
       ] || lib.hasPrefix "result" baseName
         || lib.hasSuffix ".nix" baseName);
-    src = ./.;
+    inherit src;
   };
+
+  src = mkCleanSrc ./.;
 
   launcher = speculosPkgs.callPackage ({ stdenv, cmake, ninja, perl, pkg-config, openssl, cmocka }: stdenv.mkDerivation {
     name = "speculos";
@@ -39,23 +41,9 @@ rec {
     ];
   }) {};
 
-  vnc_server = pkgs.callPackage ({ stdenv, cmake, ninja, pkg-config, libvncserver }: stdenv.mkDerivation {
-    name = "vnc_server";
-
-    src = "${src}/src/vnc";
-
-    nativeBuildInputs = [
-      cmake
-      ninja
-      pkg-config
-    ];
-
-    buildInputs = [
-      libvncserver
-    ];
-
-    strictDeps = true;
-  }) {};
+  vnc_server = pkgs.callPackage ./src/vnc {
+    inherit mkCleanSrc;
+  };
 
   speculos = pkgs.python3Packages.callPackage (
   { buildPythonApplication, python3, qemu, makeWrapper 
