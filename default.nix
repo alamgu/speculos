@@ -59,7 +59,7 @@ rec {
 
   speculos = pkgs.python3Packages.callPackage (
   { buildPythonApplication, python3, qemu, makeWrapper 
-  , pyqt5, construct, mnemonic, pyelftools, setuptools, jsonschema, flask, flask-restful, pillow, requests 
+  , pyqt5, construct, mnemonic, pyelftools, setuptools, jsonschema, flask, flask-restful, pillow, requests
   , pytest
   }: buildPythonApplication {
     pname = "speculos";
@@ -102,19 +102,6 @@ rec {
     checkInputs = [
       pytest
     ];
-
-    #installPhase = ''
-    #  mkdir $out
-    #  cp -a $src/speculos.py $out/
-    #  install -d $out/bin
-    #  cp -a $src/mcu $out/mcu
-    #  cp -a api $out/api
-    #  install -d $out/libexec
-    #  ln -s ${speculosLauncher}/bin/launcher $out/libexec/launcher
-    #  install -d $out/cxlib
-    #  ln -s ${speculos/cxlib/cx-2.0.elf} $out/cxlib/cx-2.0.elf
-    #  makeWrapper $out/speculos.py $out/bin/speculos --set PATH $PATH
-    #'';
   }) {};
 
 }
