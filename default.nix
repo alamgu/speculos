@@ -60,6 +60,7 @@ rec {
   speculos = pkgs.python3Packages.callPackage (
   { buildPythonApplication, python3, qemu, makeWrapper 
   , pyqt5, construct, mnemonic, pyelftools, setuptools, jsonschema, flask, flask-restful, pillow, requests 
+  , pytest
   }: buildPythonApplication {
     pname = "speculos";
     version = "git";
@@ -97,6 +98,11 @@ rec {
 
       qemu
     ];
+
+    checkInputs = [
+      pytest
+    ];
+
     #installPhase = ''
     #  mkdir $out
     #  cp -a $src/speculos.py $out/

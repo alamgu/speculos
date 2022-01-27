@@ -25,9 +25,8 @@ def client(request):
 
     args = ["--model", info.device, "--sdk", info.version]
 
-    _client = SpeculosClient(app=filepath, args=args)
-    yield _client
-    _client.stop()
+    with SpeculosClient(app=filepath, args=args) as _client:
+        yield _client
 
 
 @pytest.mark.usefixtures("client")
@@ -98,14 +97,14 @@ class TestApi:
             with r.get(f"{API_URL}/events?stream=true", stream=True) as stream:
                 assert stream.status_code == 200
 
-                texts = [("Settings",), ("Version", ".*"), ("Quit",)]
+                texts = [("Version", ".*"), ("About",), ("Quit",)]
                 for i in range(0, 3):
                     TestApi.press_button("right")
                     for text in texts[i]:
                         event = get_next_event(stream)
                         assert re.match(text, event["text"])
 
-                texts = [("Version", ".*"), ("Settings",), ("Application", "is ready")]
+                texts = [("About",), ("Version", ".*"), ("Bitcoin", "is ready")]
                 for i in range(0, 3):
                     TestApi.press_button("left")
                     for text in texts[i]:

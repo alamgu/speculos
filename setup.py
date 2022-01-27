@@ -27,6 +27,11 @@ setup(
         "requests>=2.25.1,<3.0.0",
     ]
     + (["dataclasses>=0.8,<0.9"] if sys.version_info <= (3, 6) else []),
+    extras_require={
+        'dev': [
+            'pytest',
+            'pytest-cov'
+        ]},
     setup_requires=["wheel"],
     entry_points={
         "console_scripts": [

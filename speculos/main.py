@@ -19,7 +19,7 @@ import threading
 
 import pkg_resources
 
-from .api import api
+from .api import ApiRunner, EventsBroadcaster
 from .mcu import apdu as apdu_server
 from .mcu import automation
 from .mcu import display
@@ -28,6 +28,7 @@ from .mcu.automation_server import AutomationClient, AutomationServer
 from .mcu.button_tcp import FakeButton
 from .mcu.finger_tcp import FakeFinger
 from .mcu.vnc import VNC
+
 
 DEFAULT_SEED = ('glory promote mansion idle axis finger extra february uncover one trip resource lawn turtle enact '
                 'monster seven myth punch hobby comfort wild raise skin')
@@ -84,7 +85,7 @@ def run_qemu(s1: socket.socket, s2: socket.socket, args: argparse.Namespace) -> 
     argv += ['-k', str(args.sdk)]
 
     # load cxlib only if available for the specified sdk
-    cxlib = pkg_resources.resource_filename(__name__, f"/cxlib/cx-{args.sdk}.elf")
+    cxlib = pkg_resources.resource_filename(__name__, f"/cxlib/{args.model}-cx-{args.sdk}.elf")
     if os.path.exists(cxlib):
         argv += ['-c', cxlib]
 
@@ -253,7 +254,7 @@ def main(prog=None):
     if args.sdk is None:
         default_sdk = {
             "nanos": "2.0",
-            "nanox": "1.2",
+            "nanox": "2.0",
             "blue": "blue-2.2.5",
         }
         args.sdk = default_sdk.get(args.model)
@@ -269,14 +270,14 @@ def main(prog=None):
     if args.automation_port:
         logger.warn("--automation-port is deprecated, please use the REST API instead")
         if api_enabled:
-            logger.warn("--automation-port is incompatible with the the API server, disabling it")
+            logger.warn("--automation-port is incompatible with the the API server, disabling the latter")
             api_enabled = False
         automation_server = AutomationServer(("0.0.0.0", args.automation_port), AutomationClient)
         automation_thread = threading.Thread(target=automation_server.serve_forever, daemon=True)
         automation_thread.start()
 
     if api_enabled:
-        automation_server = api.events
+        automation_server = EventsBroadcaster()
 
     s1, s2 = socket.socketpair()
 
@@ -317,14 +318,14 @@ def main(prog=None):
 
     apirun = None
     if api_enabled:
-        apirun = api.ApiRunner(args.api_port)
+        apirun = ApiRunner(args.api_port)
 
     display_args = display.DisplayArgs(args.color, args.model, args.ontop, rendering, args.keymap, zoom, x, y)
     server_args = display.ServerArgs(apdu, apirun, button, finger, seph, vnc)
     screen = Screen(display_args, server_args)
 
     if api_enabled:
-        apirun.start_server_thread(screen, seph)
+        apirun.start_server_thread(screen, seph, automation_server)
 
     screen.run()
 
