@@ -2,11 +2,14 @@
 
 set -e
 
+export READELF="${READELF-"armv6l-unknown-none-eabi-readelf"}"
+export GDB="${GDB-"armv6l-unknown-none-eabi-gdb"}"
+
 function get_text_addr()
 {
     local elf="$1"
 
-    armv6l-unknown-none-eabi-readelf -WS "$elf" \
+    "${READELF}" -WS "$elf" \
         | grep '\.text' \
         | awk '{ print "0x"$5 }'
 }
@@ -35,7 +38,7 @@ end
 connect
 EOF
 
-    gdb -q -nh -x /tmp/x.gdb
+    "${GDB}" -q -nh -x /tmp/x.gdb
 }
 
 if [ $# -ne 1 ]; then
