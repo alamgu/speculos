@@ -2,8 +2,8 @@
 
 set -e
 
-export READELF="${READELF-"armv6l-unknown-none-eabi-readelf"}"
-export GDB="${GDB-"armv6l-unknown-none-eabi-gdb"}"
+export READELF="${READELF-"armv6m-unknown-none-eabi-readelf"}"
+export GDB="${GDB-"armv6m-unknown-none-eabi-gdb"}"
 
 function get_text_addr()
 {
