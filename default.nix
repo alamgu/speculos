@@ -1,11 +1,14 @@
 { pkgsFunc ? import <nixpkgs>
-, pkgs ? pkgsFunc {}
+, localSystem ? { system = builtins.currentSystem; }
+, pkgs ? pkgsFunc { inherit localSystem; }
 , speculosPkgs ? pkgsFunc {
+    inherit localSystem;
     crossSystem = {
       isStatic = true;
       config = "armv6l-unknown-linux-gnueabihf";
     };
   }
+, withVnc ? pkgs.stdenv.hostPlatform.isLinux
 }:
 
 rec {
@@ -61,7 +64,9 @@ rec {
       resources_dir=$sourceRoot/speculos/resources/
       mkdir -p "$resources_dir"
 	  ln -s ${launcher}/bin/launcher "$resources_dir/launcher"
+	'' + lib.optionalString withVnc ''
       ln -s ${vnc_server}/bin/vnc_server "$resources_dir/vnc_server"
+    '' + ''
       install -d $out/bin/
       cp ${src}/tools/debug.sh "$out/bin/"
       cp ${src}/tools/gdbinit "$out/bin/"
