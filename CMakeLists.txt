@@ -20,7 +20,7 @@ enable_testing()
 
 # option(WITH_VNC "Support for VNC" OFF)
 
-add_compile_options(-W -Wall -fPIC)
+add_compile_options(-W -Wall -fPIC -g)
 add_definitions(-DOS_LITTLE_ENDIAN -DNATIVE_64BITS -DGIT_REVISION=\"${GIT_REVISION}\")
 
 option(

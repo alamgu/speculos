@@ -30,6 +30,7 @@ rec {
     name = "speculos";
 
     inherit src;
+    dontStrip=true;
 
     nativeBuildInputs = [
       cmake
