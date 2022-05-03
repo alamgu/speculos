@@ -11,7 +11,7 @@ function get_text_addr()
 
     "${READELF}" -WS "$elf" \
         | grep '\.text' \
-        | awk '{ print "0x"$5 }'
+        | awk '{ print "0x"$4 }'
 }
 
 function main()
