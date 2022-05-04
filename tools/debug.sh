@@ -28,6 +28,7 @@ function main()
 source ${gdbinit}
 define connect
 set architecture arm
+set osabi GNU/Linux
 target remote 127.0.0.1:1234
 handle SIGILL nostop pass noprint
 add-symbol-file "${launcher_path}" ${launcher_text_addr}
