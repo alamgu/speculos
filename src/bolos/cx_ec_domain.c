@@ -32,7 +32,6 @@ static uint8_t const C_cofactor_8[] = { 0, 0, 0, 8 };
 /* ------------------------------------------------------------------------ */
 /* ---                            secp256k1                             --- */
 /* ------------------------------------------------------------------------ */
-#ifdef HAVE_SECP256K1_CURVE
 
 static uint8_t const C_cx_secp256k1_a[] = {
   // a:  0x00
@@ -100,12 +99,9 @@ cx_curve_weierstrass_t const C_cx_secp256k1 = {
   .Hn = C_cx_secp256k1_Hn,
 };
 
-#endif
-
 /* ------------------------------------------------------------------------ */
 /* ---                            secp256r1                             --- */
 /* ------------------------------------------------------------------------ */
-#ifdef HAVE_SECP256R1_CURVE
 
 static uint8_t const C_cx_secp256r1_a[] = {
   // a: 0xffffffff00000001000000000000000000000000fffffffffffffffffffffffc
@@ -174,12 +170,9 @@ cx_curve_weierstrass_t const C_cx_secp256r1 = {
   .Hn = C_cx_secp256r1_Hn,
 };
 
-#endif
-
 /* ------------------------------------------------------------------------ */
 /* ---                       secp384r1                                  --- */
 /* ------------------------------------------------------------------------ */
-#ifdef HAVE_SECP384R1_CURVE
 
 static uint8_t const C_cx_secp384r1_a[] = {
   // a:
@@ -256,12 +249,9 @@ cx_curve_weierstrass_t const C_cx_secp384r1 = {
   .Hn = C_cx_secp384r1_Hn,
 };
 
-#endif
-
 /* ------------------------------------------------------------------------ */
 /* ---                            secp521r1                             --- */
 /* ------------------------------------------------------------------------ */
-#ifdef HAVE_SECP521R1_CURVE
 
 static uint8_t const C_cx_secp521r1_a[] = {
   // a:
@@ -354,12 +344,9 @@ cx_curve_weierstrass_t const C_cx_secp521r1 = {
   .Hp = C_cx_secp521r1_Hp,
 };
 
-#endif
-
 /* ------------------------------------------------------------------------ */
 /* ---                            BrainpoolP256r1                       --- */
 /* ------------------------------------------------------------------------ */
-#ifdef HAVE_BRAINPOOL_P256R1_CURVE
 static uint8_t const C_cx_BrainpoolP256r1_a[] = {
   // 0x7D5A0975FC2C3057EEF67530417AFFE7FB8055C126DC5C6CE94A4B44F330B5D9
   0x7d, 0x5a, 0x09, 0x75, 0xfc, 0x2c, 0x30, 0x57, 0xee, 0xf6, 0x75,
@@ -424,11 +411,9 @@ cx_curve_weierstrass_t const C_cx_BrainpoolP256r1 = {
   .Hp = C_cx_BrainpoolP256r1_Hp,
 };
 
-#endif
 /* ------------------------------------------------------------------------ */
 /* ---                       BrainpoolP256t1                            --- */
 /* ------------------------------------------------------------------------ */
-#ifdef HAVE_BRAINPOOL_P256T1_CURVE
 static uint8_t const C_cx_BrainpoolP256t1_a[] = {
   // 0xA9FB57DBA1EEA9BC3E660A909D838D726E3BF623D52620282013481D1F6E5374
   0xa9, 0xfb, 0x57, 0xdb, 0xa1, 0xee, 0xa9, 0xbc, 0x3e, 0x66, 0x0a,
@@ -493,11 +478,9 @@ cx_curve_weierstrass_t const C_cx_BrainpoolP256t1 = {
   .Hp = C_cx_BrainpoolP256t1_Hp,
 };
 
-#endif
 /* ------------------------------------------------------------------------ */
 /* ---                       BrainpoolP320r1                            --- */
 /* ------------------------------------------------------------------------ */
-#ifdef HAVE_BRAINPOOL_P320R1_CURVE
 static uint8_t const C_cx_BrainpoolP320r1_a[] = {
   // a:  0x
   0x3E, 0xE3, 0x0B, 0x56, 0x8F, 0xBA, 0xB0, 0xF8, 0x83, 0xCC,
@@ -576,11 +559,9 @@ cx_curve_weierstrass_t const C_cx_BrainpoolP320r1 = {
   .Hn = C_cx_BrainpoolP320r1_Hn,
 };
 
-#endif
 /* ------------------------------------------------------------------------ */
 /* ---                       BrainpoolP320t1                            --- */
 /* ------------------------------------------------------------------------ */
-#ifdef HAVE_BRAINPOOL_P320T1_CURVE
 static uint8_t const C_cx_BrainpoolP320t1_a[] = {
   // a:
   // 0xD35E472036BC4FB7E13C785ED201E065F98FCFA6F6F40DEF4F92B9EC7893EC28FCD412B1F1B32E24
@@ -660,11 +641,9 @@ cx_curve_weierstrass_t const C_cx_BrainpoolP320t1 = {
   .Hn = C_cx_BrainpoolP320t1_Hn,
 };
 
-#endif
 /* ------------------------------------------------------------------------ */
 /* ---                       BrainpoolP384r1                            --- */
 /* ------------------------------------------------------------------------ */
-#ifdef HAVE_BRAINPOOL_P384R1_CURVE
 static uint8_t const C_cx_BrainpoolP384r1_a[] = {
   // a:
   // 0x7BC382C63D8C150C3C72080ACE05AFA0C2BEA28E4FB22787139165EFBA91F90F8AA5814A503AD4EB04A8C7DD22CE2826
@@ -743,11 +722,9 @@ cx_curve_weierstrass_t const C_cx_BrainpoolP384r1 = {
   .Hn = C_cx_BrainpoolP384r1_Hn,
 };
 
-#endif
 /* ------------------------------------------------------------------------ */
 /* ---                       BrainpoolP384t1                            --- */
 /* ------------------------------------------------------------------------ */
-#ifdef HAVE_BRAINPOOL_P384T1_CURVE
 static uint8_t const C_cx_BrainpoolP384t1_a[] = {
   // a:
   // 0x8CB91E82A3386D280F5D6F7E50E641DF152F7109ED5456B412B1DA197FB71123ACD3A729901D1A71874700133107EC50
@@ -826,11 +803,9 @@ cx_curve_weierstrass_t const C_cx_BrainpoolP384t1 = {
   .Hn = C_cx_BrainpoolP384t1_Hn,
 };
 
-#endif
 /* ------------------------------------------------------------------------ */
 /* ---                       BrainpoolP512r1                            --- */
 /* ------------------------------------------------------------------------ */
-#ifdef HAVE_BRAINPOOL_P512R1_CURVE
 static uint8_t const C_cx_BrainpoolP512r1_a[] = {
   // a:
   // 0x7830A3318B603B89E2327145AC234CC594CBDD8D3DF91610A83441CAEA9863BC2DED5D5AA8253AA10A2EF1C98B9AC8B57F1117A72BF2C7B9E7C1AC4D77FC94CA
@@ -917,11 +892,9 @@ cx_curve_weierstrass_t const C_cx_BrainpoolP512r1 = {
   .Hn = C_cx_BrainpoolP512r1_Hn,
 };
 
-#endif
 /* ------------------------------------------------------------------------ */
 /* ---                       BrainpoolP512t1                            --- */
 /* ------------------------------------------------------------------------ */
-#ifdef HAVE_BRAINPOOL_P512T1_CURVE
 static uint8_t const C_cx_BrainpoolP512t1_a[] = {
   // a:
   // 0xAADD9DB8DBE9C48B3FD4E6AE33C9FC07CB308DB3B3C9D20ED6639CCA703308717D4D9B009BC66842AECDA12AE6A380E62881FF2F2D82C68528AA6056583A48F0
@@ -1009,7 +982,82 @@ cx_curve_weierstrass_t const C_cx_BrainpoolP512t1 = {
 
 };
 
-#endif
+/* ========================================================================= */
+/* ========================================================================= */
+/* ===                                STARK                              === */
+/* ========================================================================= */
+/* ========================================================================= */
+
+/* ------------------------------------------------------------------------ */
+/* ---                              Stark256                            --- */
+/* ------------------------------------------------------------------------ */
+
+static uint8_t const C_cx_Stark256_a[] = {
+  // a: 0000000000000000000000000000000000000000000000000000000000000001
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01
+};
+static uint8_t const C_cx_Stark256_b[] = {
+  // b: 0x06f21413efbe40de150e596d72f7a8c5609ad26c15c915c1f4cdfcb99cee9e89
+  0x06, 0xf2, 0x14, 0x13, 0xef, 0xbe, 0x40, 0xde, 0x15, 0x0e, 0x59,
+  0x6d, 0x72, 0xf7, 0xa8, 0xc5, 0x60, 0x9a, 0xd2, 0x6c, 0x15, 0xc9,
+  0x15, 0xc1, 0xf4, 0xcd, 0xfc, 0xb9, 0x9c, 0xee, 0x9e, 0x89
+};
+static uint8_t const C_cx_Stark256_p[] = {
+  // p: 0x0800000000000011000000000000000000000000000000000000000000000001
+  0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x11, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01
+};
+static uint8_t const C_cx_Stark256_Hp[] = {
+  // Hp: 0x07ffd4ab5e008810ffffffffff6f800000000001330ffffffffffd737e000401
+  0x07, 0xff, 0xd4, 0xab, 0x5e, 0x00, 0x88, 0x10, 0xff, 0xff, 0xff,
+  0xff, 0xff, 0x6f, 0x80, 0x00, 0x00, 0x00, 0x00, 0x01, 0x33, 0x0f,
+  0xff, 0xff, 0xff, 0xff, 0xfd, 0x73, 0x7e, 0x00, 0x04, 0x01
+};
+static uint8_t const C_cx_Stark256_n[] = {
+  // n: 0x0800000000000010ffffffffffffffffb781126dcae7b2321e66a241adc64d2f
+  0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0xff, 0xff, 0xff,
+  0xff, 0xff, 0xff, 0xff, 0xff, 0xb7, 0x81, 0x12, 0x6d, 0xca, 0xe7,
+  0xb2, 0x32, 0x1e, 0x66, 0xa2, 0x41, 0xad, 0xc6, 0x4d, 0x2f
+};
+static uint8_t const C_cx_Stark256_Hn[] = {
+  // Hn: 0x07d9e57c2333766ebaf0ab4cf78bbabb509cf64d14ce60b96021b3f1ea1c688d
+  0x07, 0xd9, 0xe5, 0x7c, 0x23, 0x33, 0x76, 0x6e, 0xba, 0xf0, 0xab,
+  0x4c, 0xf7, 0x8b, 0xba, 0xbb, 0x50, 0x9c, 0xf6, 0x4d, 0x14, 0xce,
+  0x60, 0xb9, 0x60, 0x21, 0xb3, 0xf1, 0xea, 0x1c, 0x68, 0x8d
+};
+static uint8_t const C_cx_Stark256_Gx[] = {
+  // Gx: 01ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca
+  0x01, 0xef, 0x15, 0xc1, 0x85, 0x99, 0x97, 0x1b, 0x7b, 0xec, 0xed,
+  0x41, 0x5a, 0x40, 0xf0, 0xc7, 0xde, 0xac, 0xfd, 0x9b, 0x0d, 0x18,
+  0x19, 0xe0, 0x3d, 0x72, 0x3d, 0x8b, 0xc9, 0x43, 0xcf, 0xca
+};
+static uint8_t const C_cx_Stark256_Gy[] = {
+  // Gy: 005668060aa49730b7be4801df46ec62de53ecd11abe43a32873000c36e8dc1f
+  0x00, 0x56, 0x68, 0x06, 0x0a, 0xa4, 0x97, 0x30, 0xb7, 0xbe, 0x48,
+  0x01, 0xdf, 0x46, 0xec, 0x62, 0xde, 0x53, 0xec, 0xd1, 0x1a, 0xbe,
+  0x43, 0xa3, 0x28, 0x73, 0x00, 0x0c, 0x36, 0xe8, 0xdc, 0x1f
+};
+
+#define C_cx_Stark256_h C_cofactor_1
+
+cx_curve_weierstrass_t const C_cx_Stark256 = {
+  .curve = CX_CURVE_Stark256,
+  .bit_size = 252,
+  .length = 32,
+
+  .a = C_cx_Stark256_a,
+  .b = C_cx_Stark256_b,
+  .p = C_cx_Stark256_p,
+  .Gx = C_cx_Stark256_Gx,
+  .Gy = C_cx_Stark256_Gy,
+  .n = C_cx_Stark256_n,
+  .h = C_cx_Stark256_h,
+  .Hp = C_cx_Stark256_Hp,
+  .Hn = C_cx_Stark256_Hn,
+};
 
 /* ========================================================================= */
 /* ========================================================================= */
@@ -1020,7 +1068,6 @@ cx_curve_weierstrass_t const C_cx_BrainpoolP512t1 = {
 /* ------------------------------------------------------------------------ */
 /* ---                              Ed25519                             --- */
 /* ------------------------------------------------------------------------ */
-#ifdef HAVE_ED25519_CURVE
 
 static uint8_t const C_cx_Ed25519_a[] = {
   0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
@@ -1085,13 +1132,10 @@ cx_curve_twisted_edwards_t const C_cx_Ed25519 = {
   .Hp = C_cx_Ed25519_Hq,
   .Hn = C_cx_Ed25519_Hl,
 };
-#endif
 
 /* ------------------------------------------------------------------------ */
 /* ---                               Ed448                              --- */
 /* ------------------------------------------------------------------------ */
-#ifdef HAVE_ED448_CURVE
-
 static uint8_t const C_cx_Ed448_a[] = {
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -1178,7 +1222,6 @@ cx_curve_twisted_edwards_t const C_cx_Ed448 = {
   .Hp = C_cx_Ed448_Hq,
   .Hn = C_cx_Ed448_Hl,
 };
-#endif
 
 /* ========================================================================= */
 /* ========================================================================= */
@@ -1189,7 +1232,6 @@ cx_curve_twisted_edwards_t const C_cx_Ed448 = {
 /* ------------------------------------------------------------------------ */
 /* ---                             Curve25519                           --- */
 /* ------------------------------------------------------------------------ */
-#ifdef HAVE_CV25519_CURVE
 
 static uint8_t const C_cx_Curve25519_a[] = {
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -1255,12 +1297,9 @@ cx_curve_montgomery_t const C_cx_Curve25519 = {
   .Hn = C_cx_Curve25519_Hn,
 };
 
-#endif
-
 /* ------------------------------------------------------------------------ */
 /* ---                              Curve448                            --- */
 /* ------------------------------------------------------------------------ */
-#ifdef HAVE_CV448_CURVE
 
 static uint8_t const C_cx_Curve448_a[] = {
   // a: 0x262a6
@@ -1348,8 +1387,6 @@ cx_curve_montgomery_t const C_cx_Curve448 = {
   .Hn = C_cx_Curve448_Hn,
 };
 
-#endif
-
 /* ========================================================================= */
 /* ========================================================================= */
 /* ===                                ALL                                === */
@@ -1358,60 +1395,31 @@ cx_curve_montgomery_t const C_cx_Curve448 = {
 
 cx_curve_domain_t const *const C_cx_allCurves[] = {
 
-// secp
-#ifdef HAVE_SECP256K1_CURVE
+  // secp
   (const cx_curve_domain_t *)&C_cx_secp256k1,
-#endif
-#ifdef HAVE_SECP256R1_CURVE
   (const cx_curve_domain_t *)&C_cx_secp256r1,
-#endif
-#ifdef HAVE_SECP384R1_CURVE
   (const cx_curve_domain_t *)&C_cx_secp384r1,
-#endif
-#ifdef HAVE_SECP521R1_CURVE
   (const cx_curve_domain_t *)&C_cx_secp521r1,
-#endif
 
-// Brainpool/NIST
-#ifdef HAVE_BRAINPOOL_P256R1_CURVE
+  // Brainpool/NIST
   (const cx_curve_domain_t *)&C_cx_BrainpoolP256r1,
-#endif
-#ifdef HAVE_BRAINPOOL_P256T1_CURVE
   (const cx_curve_domain_t *)&C_cx_BrainpoolP256t1,
-#endif
-#ifdef HAVE_BRAINPOOL_P320R1_CURVE
   (const cx_curve_domain_t *)&C_cx_BrainpoolP320r1,
-#endif
-#ifdef HAVE_BRAINPOOL_P320T1_CURVE
   (const cx_curve_domain_t *)&C_cx_BrainpoolP320t1,
-#endif
-#ifdef HAVE_BRAINPOOL_P384R1_CURVE
   (const cx_curve_domain_t *)&C_cx_BrainpoolP384r1,
-#endif
-#ifdef HAVE_BRAINPOOL_P384T1_CURVE
   (const cx_curve_domain_t *)&C_cx_BrainpoolP384t1,
-#endif
-#ifdef HAVE_BRAINPOOL_P512R1_CURVE
   (const cx_curve_domain_t *)&C_cx_BrainpoolP512r1,
-#endif
-#ifdef HAVE_BRAINPOOL_P512T1_CURVE
   (const cx_curve_domain_t *)&C_cx_BrainpoolP512t1,
-#endif
 
-// TwEd
-#ifdef HAVE_ED25519_CURVE
+  // STARK
+  (const cx_curve_domain_t *)&C_cx_Stark256,
+
+  // TwEd
   (const cx_curve_domain_t *)&C_cx_Ed25519,
-#endif
-#ifdef HAVE_ED448_CURVE
   (const cx_curve_domain_t *)&C_cx_Ed448,
-#endif
 
-#ifdef HAVE_CV25519_CURVE
   (const cx_curve_domain_t *)&C_cx_Curve25519,
-#endif
-#ifdef HAVE_CV448_CURVE
   (const cx_curve_domain_t *)&C_cx_Curve448
-#endif
 };
 
 //-----------------------------------------------------------------------------
@@ -1458,6 +1466,9 @@ int cx_nid_from_curve(cx_curve_t curve)
   case CX_CURVE_BrainPoolP512T1:
     nid = NID_brainpoolP512t1;
     break;
+  case CX_CURVE_Stark256:
+    nid = NID_undef;
+    break;
 #if 0
   case CX_CURVE_SECP521R1:
     nid = NID_secp521r1;
@@ -1469,6 +1480,81 @@ int cx_nid_from_curve(cx_curve_t curve)
     break;
   }
   return nid;
+}
+
+EC_GROUP *cx_group_from_nid_and_curve(int nid, cx_curve_t cid)
+{
+  EC_GROUP *group = NULL;
+  /* create a generic curve if generic nid */
+  if (nid != NID_undef) {
+    group = EC_GROUP_new_by_curve_name(nid);
+  } else {
+    group = cx_create_generic_curve(cid);
+  }
+  return group;
+}
+
+EC_GROUP *cx_create_generic_curve(cx_curve_t cid)
+{
+  BN_CTX *ctx;
+  EC_GROUP *curve = NULL;
+  BIGNUM *a, *b, *p, *order, *x, *y;
+  EC_POINT *generator;
+
+  /* Get curve domain to init the EC_GROUP */
+  const cx_curve_domain_t *domain;
+  if (NULL == (domain = cx_ecdomain(cid))) {
+    errx(1, "error when getting the curve domain");
+    goto error;
+  }
+
+  /* Set up the BN_CTX  */
+  if (NULL == (ctx = BN_CTX_new())) {
+    errx(1, "error when setting up the BN CTX");
+    goto error;
+  }
+
+  /* Set up the values for the various parameters */
+  if ((NULL == (a = BN_bin2bn(domain->a, domain->length, NULL))) ||
+      (NULL == (b = BN_bin2bn(domain->b, domain->length, NULL))) ||
+      (NULL == (p = BN_bin2bn(domain->p, domain->length, NULL))) ||
+      (NULL == (order = BN_bin2bn(domain->n, domain->length, NULL))) ||
+      (NULL == (x = BN_bin2bn(domain->Gx, domain->length, NULL))) ||
+      (NULL == (y = BN_bin2bn(domain->Gy, domain->length, NULL)))) {
+    errx(1, "error when setting up the BN CTX parameters");
+    goto error;
+  }
+
+  /* Create the curve */
+  if (NULL == (curve = EC_GROUP_new_curve_GFp(p, a, b, ctx))) {
+    errx(1, "error when creating the curve");
+    goto error;
+  }
+
+  /* Create the generator */
+  if ((NULL == (generator = EC_POINT_new(curve))) ||
+      (1 != EC_POINT_set_affine_coordinates_GFp(curve, generator, x, y, ctx))) {
+    errx(1, "error when creating the generator");
+    goto error;
+  }
+
+  /* Set the generator and the order */
+  if (1 != EC_GROUP_set_generator(curve, generator, order, NULL)) {
+    errx(1, "error when setting up the generator and the order");
+    goto error;
+  }
+
+error:
+  EC_POINT_free(generator);
+  BN_free(y);
+  BN_free(x);
+  BN_free(order);
+  BN_free(p);
+  BN_free(b);
+  BN_free(a);
+  BN_CTX_free(ctx);
+
+  return curve;
 }
 
 const cx_curve_domain_t *cx_ecdomain(cx_curve_t curve)

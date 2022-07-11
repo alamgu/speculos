@@ -3,6 +3,10 @@
 #include <stdint.h>
 #include <unistd.h>
 
+#if UINTPTR_MAX == UINT64_MAX
+#define NATIVE_64BITS
+#endif
+
 #ifndef NATIVE_64BITS // NO 64BITS
 /** 64bits types, native or by-hands, depending on target and/or compiler
  * support.
@@ -26,8 +30,8 @@ typedef unsigned long long uint64bits_t;
 /* ======================================================================= */
 /*                          32 BITS manipulation                           */
 /* ======================================================================= */
-uint32_t cx_swap_uint32(uint32_t v);
-void cx_swap_buffer32(uint32_t *v, size_t len);
+uint32_t spec_cx_swap_uint32(uint32_t v);
+void spec_cx_swap_buffer32(uint32_t *v, size_t len);
 
 #if 0
 unsigned long int cx_rotl(unsigned long int x, unsigned char n) ;
@@ -71,8 +75,8 @@ void cx_rotr64(uint64bits_t *x, unsigned int n);
 void cx_shr64(uint64bits_t *x, unsigned char n);
 
 void cx_add_64(uint64bits_t *a, uint64bits_t *b);
-void cx_swap_uint64(uint64bits_t *v);
-void cx_swap_buffer64(uint64bits_t *v, int len);
+void spec_cx_swap_uint64(uint64bits_t *v);
+void spec_cx_swap_buffer64(uint64bits_t *v, int len);
 
 #else
 
@@ -92,8 +96,8 @@ uint64bits_t cx_shr64(uint64bits_t x, unsigned int n) ;
 #define cx_shr64(x, n) ((x) >> (n))
 #endif
 
-uint64bits_t cx_swap_uint64(uint64bits_t v);
-void cx_swap_buffer64(uint64bits_t *v, int len);
+uint64bits_t spec_cx_swap_uint64(uint64bits_t v);
+void spec_cx_swap_buffer64(uint64bits_t *v, int len);
 
 #endif
 

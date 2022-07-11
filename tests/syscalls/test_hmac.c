@@ -10,7 +10,6 @@
 #include "utils.h"
 
 #include "bolos/cx.h"
-#include "bolos/cx_hmac.h"
 #include "emulate.h"
 
 void cx_scc_struct_check_hashmac(const cx_hmac_t *UNUSED(hmac))
@@ -83,9 +82,9 @@ void test_cavp_long_msg_with_size(const char *filename)
     assert_int_not_equal(md, CX_NONE);
 
     returned_mac_len = mac_len;
-    assert_int_equal(cx_hmac_init(&ctx, md, key, key_len), 1);
-    assert_int_equal(cx_hmac_update(&ctx, data, data_len), 1);
-    assert_int_equal(cx_hmac_final(&ctx, mac, &returned_mac_len), 1);
+    assert_int_equal(spec_cx_hmac_init(&ctx, md, key, key_len), 1);
+    assert_int_equal(spec_cx_hmac_update(&ctx, data, data_len), 1);
+    assert_int_equal(spec_cx_hmac_final(&ctx, mac, &returned_mac_len), 1);
 
     assert_int_equal(returned_mac_len, mac_len);
     assert_memory_equal(mac, expected, mac_len);

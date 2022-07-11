@@ -24,8 +24,14 @@ function main()
     launcher_text_addr=$(get_text_addr "$launcher_path")
     local gdbinit="${GDBINIT:-$script_dir/gdbinit}"
 
-    cat >/tmp/x.gdb<<EOF
+    local arch
+    arch=$(uname -m)
+    if [ "$arch" != "aarch64" ]; then
+        cat >/tmp/x.gdb<<EOF
 source ${gdbinit}
+EOF
+    fi
+    cat >>/tmp/x.gdb<<EOF
 define connect
 set architecture arm
 set osabi GNU/Linux
@@ -38,7 +44,6 @@ c
 end
 connect
 EOF
-
     "${GDB}" -q -nh -x /tmp/x.gdb
 }
 

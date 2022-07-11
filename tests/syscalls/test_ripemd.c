@@ -10,7 +10,6 @@
 #include "utils.h"
 
 #include "bolos/cx.h"
-#include "bolos/cx_hash.h"
 #include "emulate.h"
 
 #define cx_hash sys_cx_hash
@@ -55,8 +54,8 @@ void test_ripemd160_kat1(void **state __attribute__((unused)))
                      CX_RIPEMD160_SIZE);
 
     assert_int_equal(cx_ripemd160_init(&ctx), CX_RIPEMD160);
-    cx_ripemd160_update(&ctx, msg, msg_len);
-    cx_ripemd160_final(&ctx, out);
+    spec_cx_ripemd160_update(&ctx, msg, msg_len);
+    spec_cx_ripemd160_final(&ctx, out);
     // assert_int_equal(cx_hash((cx_hash_t *)&ctx, CX_LAST, msg, msg_len, out,
     //                          CX_RIPEMD160_SIZE),
     //                  CX_RIPEMD160_SIZE);

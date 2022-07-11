@@ -10,7 +10,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "bolos/cx_ed25519.h"
+#include "bolos/cx.h"
 #include "bolos/cxlib.h"
 #include "emulate.h"
 
@@ -26,7 +26,7 @@ static int cx_weierstrass_mult(cx_curve_t curve, cx_mpi_t *qx, cx_mpi_t *qy,
   int ret = 0;
 
   if ((nid = cx_nid_from_curve(curve)) >= 0) {
-    group = EC_GROUP_new_by_curve_name(nid);
+    group = cx_group_from_nid_and_curve(nid, curve);
   }
   if (group != NULL) {
     p = EC_POINT_new(group);
@@ -291,6 +291,7 @@ cx_err_t sys_cx_ecpoint_scalarmul(cx_ecpoint_t *ec_P, const uint8_t *k,
   case CX_CURVE_SECP256K1:
   case CX_CURVE_SECP256R1:
   case CX_CURVE_SECP384R1:
+  case CX_CURVE_Stark256:
   case CX_CURVE_BrainPoolP256R1:
   case CX_CURVE_BrainPoolP256T1:
   case CX_CURVE_BrainPoolP320R1:
@@ -440,7 +441,7 @@ cx_err_t sys_cx_ecpoint_add(cx_ecpoint_t *ec_R, const cx_ecpoint_t *ec_P,
   } else {
     // Try to use EC_POINT_add:
     if ((nid = cx_nid_from_curve(ec_P->curve)) < 0 ||
-        (group = EC_GROUP_new_by_curve_name(nid)) == NULL) {
+        (group = cx_group_from_nid_and_curve(nid, ec_P->curve)) == NULL) {
       return CX_EC_INVALID_CURVE;
     }
     p = EC_POINT_from_ecpoint(group, ec_P, true);
@@ -611,7 +612,7 @@ cx_err_t sys_cx_ecpoint_is_on_curve(const cx_ecpoint_t *ec_P, bool *is_on_curve)
   CX_CHECK(cx_mpi_ecpoint_from_ecpoint(&P, ec_P));
 
   if ((nid = cx_nid_from_curve(ec_P->curve)) >= 0) {
-    group = EC_GROUP_new_by_curve_name(nid);
+    group = cx_group_from_nid_and_curve(nid, ec_P->curve);
   }
   if (group != NULL) {
     point = EC_POINT_new(group);

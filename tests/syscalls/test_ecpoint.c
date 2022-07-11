@@ -7,8 +7,9 @@
 // must come after setjmp.h
 #include <cmocka.h>
 
+#define _SDK_2_0_
+
 #include "bolos/cx.h"
-#include "bolos/cx_ec_sdk2.h"
 #include "bolos/cxlib.h"
 #include "utils.h"
 
