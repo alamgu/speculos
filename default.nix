@@ -51,7 +51,7 @@ rec {
 
   speculos = pkgs.python3Packages.callPackage (
   { buildPythonApplication, python3, qemu, makeWrapper 
-  , pyqt5, construct, mnemonic, pyelftools, setuptools, jsonschema, flask, flask-restful, pillow, requests
+  , pyqt5, construct, mnemonic, pyelftools, setuptools, jsonschema, flask, flask-restful, flask-cors, pillow, requests
   , pytest
   }: buildPythonApplication {
     pname = "speculos";
@@ -87,6 +87,7 @@ rec {
       jsonschema
       flask
       flask-restful
+      flask-cors
       pillow
       requests
 

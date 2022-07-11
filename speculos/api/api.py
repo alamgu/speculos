@@ -3,6 +3,7 @@ import threading
 import pkg_resources
 from typing import Dict, Optional
 from flask import Flask
+from flask_cors import CORS
 from flask_restful import Api
 
 from ..mcu.readerror import ReadError
@@ -19,7 +20,7 @@ from .web_interface import WebInterface
 
 class ApiRunner:
     """Run the Speculos API server, with a notification when it stops"""
-    def __init__(self, api_port: int) -> None:
+    def __init__(self, api_port: int, api_cors: bool) -> None:
         self._app: Optional[Flask] = None
         # self.s is used by Screen.add_notifier. Closing self._notify_exit
         # signals it that the API is no longer running.
@@ -27,6 +28,7 @@ class ApiRunner:
         self._notify_exit: socket.socket
         self.s, self._notify_exit = socket.socketpair()
         self.api_port: int = api_port
+        self.api_cors: bool = api_cors
 
     def can_read(self, s: int, screen) -> None:
         assert s == self.s.fileno()
@@ -47,17 +49,19 @@ class ApiRunner:
                             screen_,
                             seph_: SeProxyHal,
                             automation_server: EventsBroadcaster) -> None:
-        wrapper = ApiWrapper(screen_, seph_, automation_server)
+        wrapper = ApiWrapper(screen_, seph_, automation_server, self.api_cors)
         self._app = wrapper.app
         api_thread = threading.Thread(target=self._run, name="API-server", daemon=True)
         api_thread.start()
 
 
 class ApiWrapper:
-    def __init__(self, screen, seph: SeProxyHal, automation_server: EventsBroadcaster):
+    def __init__(self, screen, seph: SeProxyHal, automation_server: EventsBroadcaster, api_cors: bool):
         self._screen = screen
         self._seph = seph
         self._set_app()
+        if api_cors:
+           CORS(self._app)
 
         self._api = Api(self.app)
         self._api.add_resource(APDU, "/apdu",

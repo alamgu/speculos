@@ -183,6 +183,7 @@ def main(prog=None):
     group = parser.add_argument_group('network arguments')
     group.add_argument('--apdu-port', default=9999, type=int, help='ApduServer TCP port')
     group.add_argument('--api-port', default=5000, type=int, help='Set the REST API TCP port (0 disables it)')
+    group.add_argument('--api-cors', action='store_true', help='Enable CORS from all domains on the API port')
     group.add_argument('--automation-port', type=int, help='Forward text displayed on the screen to TCP clients')
     group.add_argument('--vnc-port', type=int, help='Start a VNC server on the specified port')
     group.add_argument('--vnc-password', type=str, help='VNC plain-text password (required for MacOS Screen Sharing)')
@@ -320,7 +321,7 @@ def main(prog=None):
 
     apirun = None
     if api_enabled:
-        apirun = ApiRunner(args.api_port)
+        apirun = ApiRunner(args.api_port, args.api_cors)
 
     display_args = display.DisplayArgs(args.color, args.model, args.ontop, rendering, args.keymap, zoom, x, y)
     server_args = display.ServerArgs(apdu, apirun, button, finger, seph, vnc)
