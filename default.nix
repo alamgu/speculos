@@ -5,7 +5,7 @@
     inherit localSystem;
     crossSystem = {
       isStatic = true;
-      config = "armv6l-unknown-linux-gnueabihf";
+      config = "armv6l-unknown-linux-musleabihf";
     };
   }
 , withVnc ? pkgs.stdenv.hostPlatform.isLinux
