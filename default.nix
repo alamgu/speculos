@@ -4,7 +4,7 @@
 , speculosPkgs ? pkgsFunc {
     inherit localSystem;
     crossSystem = {
-      isStatic = true;
+      #isStatic = true;
       config = "armv6l-unknown-linux-gnueabihf";
     };
   }
@@ -12,6 +12,7 @@
 }:
 
 rec {
+  inherit pkgs speculosPkgs;
   inherit (pkgs) lib;
 
   mkCleanSrc = src: lib.cleanSourceWith {
@@ -40,7 +41,10 @@ rec {
     ];
 
     buildInputs = [
-      openssl
+      (openssl.override (old: {
+        # Need this so speculos can grab internal functions.
+        static = true;
+      }))
       cmocka
     ];
   }) {};
