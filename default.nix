@@ -68,8 +68,8 @@ rec {
       cp -f ${./README.md} $sourceRoot/README.md
       resources_dir=$sourceRoot/speculos/resources/
       mkdir -p "$resources_dir"
-	  ln -s ${launcher}/bin/launcher "$resources_dir/launcher"
-	'' + lib.optionalString withVnc ''
+      ln -s ${launcher}/bin/launcher "$resources_dir/launcher"
+    '' + lib.optionalString withVnc ''
       ln -s ${vnc_server}/bin/vnc_server "$resources_dir/vnc_server"
     '' + ''
       install -d $out/bin/
