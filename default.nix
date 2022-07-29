@@ -27,7 +27,7 @@ rec {
 
   src = mkCleanSrc ./.;
 
-  launcher = speculosPkgs.callPackage ({ stdenv, cmake, ninja, perl, pkg-config, openssl, cmocka }: stdenv.mkDerivation {
+  launcher = speculosPkgs.callPackage ({ stdenv, cmake, ninja, perl, pkg-config, openssl }: stdenv.mkDerivation {
     name = "speculos";
 
     inherit src;
@@ -45,7 +45,6 @@ rec {
         # Need this so speculos can grab internal functions.
         static = true;
       }))
-      cmocka
     ];
   }) {};
 
