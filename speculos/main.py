@@ -14,6 +14,7 @@ import os
 import re
 import signal
 import socket
+import subprocess
 import sys
 import threading
 
@@ -46,6 +47,37 @@ def set_pdeath(sig):
     libc.prctl(PR_SET_PDEATHSIG, sig)
 
 
+def get_sh_size(elf, text):
+    next_addr = 0
+    start_addr = 0
+    logger.error("Getting SH size")
+    for seg in elf.iter_segments():
+        logger.error("vaddr: %x shaddr: %x", seg['p_vaddr'], text['sh_addr'])
+        if seg['p_vaddr'] == text['sh_addr']: # Find the segment containing text
+            logger.error("Found text segment");
+            start_addr = seg['p_paddr']
+            next_addr = seg['p_paddr'] + seg['p_memsz']
+            next_offset = seg['p_offset'] + seg['p_filesz']
+            if seg['p_filesz'] != seg['p_memsz'] or seg['p_vaddr'] != text['sh_addr']: # If the text section looks weird, use old behavior.
+                logger.error("Text section is not the same size in memory as in file")
+                return text['sh_size']
+        elif (seg['p_paddr'] == next_addr and
+                seg['p_type'] == 'PT_LOAD' and
+                seg['p_filesz'] == seg['p_memsz'] and
+                seg['p_offset'] == next_offset): # If an immediately following section is contiguous in both file and memory, add it to the to-be-mapped size.
+            next_addr = seg['p_paddr'] + seg['p_memsz']
+            next_offset = seg['p_offset'] + seg['p_filesz']
+            logger.error("Appending section after .text")
+        elif next_addr != 0: # Else, if we've seen the text section, we're done.
+            break
+    if next_addr != 0:
+        logger.error("Successful: size to map is %x instead of %x", next_addr - start_addr, text['sh_size'])
+        return next_addr - start_addr
+    else:
+        logger.error("Unsuccessful; old behavior")
+        return text['sh_size']
+
+
 def get_elf_infos(app_path):
     with open(app_path, 'rb') as fp:
         elf = ELFFile(fp)
@@ -53,7 +85,7 @@ def get_elf_infos(app_path):
         symtab = elf.get_section_by_name('.symtab')
         bss = elf.get_section_by_name('.bss')
         sh_offset = text['sh_offset']
-        sh_size = text['sh_size']
+        sh_size = get_sh_size(elf, text)
         stack = bss['sh_addr']
         sym_estack = symtab.get_symbol_by_name('_estack')
         if sym_estack is None:
@@ -107,9 +139,19 @@ def run_qemu(s1: socket.socket, s2: socket.socket, args: argparse.Namespace) -> 
 
     extra_ram = ''
     app_path = getattr(args, 'app.elf')
+
+    tempdir = "speculos_temp"
+    if not os.path.exists(tempdir):
+        os.mkdir(tempdir)
+
     for lib in [f'main:{app_path}'] + args.library:
         name, lib_path = lib.split(':')
         load_offset, load_size, stack, stack_size, ram_addr, ram_size = get_elf_infos(lib_path)
+        binary_name = os.path.join(tempdir, os.path.basename(lib_path))
+        subprocess.run(["armv6m-unknown-none-eabi-objcopy", "-O", "binary", lib_path, binary_name])
+        load_size = os.path.getsize(binary_name)
+        load_offset = 0
+        lib_path = binary_name
         # Since binaries loaded as libs could also declare extra RAM page(s), collect them all
         if (ram_addr, ram_size) != (0, 0):
             arg = f'{ram_addr:#x}:{ram_size:#x}'
