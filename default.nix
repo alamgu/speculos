@@ -33,6 +33,10 @@ rec {
     inherit src;
     dontStrip=true;
 
+    cmakeFlags = [
+      "-DCMAKE_SKIP_BUILD_RPATH=ON"
+    ];
+
     nativeBuildInputs = [
       cmake
       ninja
@@ -47,7 +51,9 @@ rec {
       }))
       cmocka
     ];
-  }) {};
+  }) {
+    openssl = speculosPkgs.openssl_1_1;
+  };
 
   vnc_server = pkgs.callPackage ./src/vnc {
     inherit mkCleanSrc;

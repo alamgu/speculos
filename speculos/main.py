@@ -90,7 +90,7 @@ def get_cx_infos(app_path):
     return sh_offset, sh_size, sh_load, cx_ram_size, cx_ram_load
 
 
-def run_qemu(s1: socket.socket, s2: socket.socket, args: argparse.Namespace) -> None:
+def run_qemu(s1: socket.socket, s2: socket.socket, args: argparse.Namespace) -> int:
     argv = ['qemu-arm']
 
     if args.debug:
@@ -135,7 +135,7 @@ def run_qemu(s1: socket.socket, s2: socket.socket, args: argparse.Namespace) -> 
 
     pid = os.fork()
     if pid != 0:
-        return
+        return pid
 
     # ensure qemu is killed when this Python script exits
     set_pdeath(signal.SIGTERM)
@@ -306,7 +306,7 @@ def main(prog=None):
 
     s1, s2 = socket.socketpair()
 
-    run_qemu(s1, s2, args)
+    qemu_pid = run_qemu(s1, s2, args)
     s1.close()
 
     apdu = apdu_server.ApduServer(host="0.0.0.0", port=args.apdu_port)
@@ -356,3 +356,6 @@ def main(prog=None):
     screen.run()
 
     s2.close()
+    _, status = os.waitpid(qemu_pid, 0)
+    qemu_exit_status = os.WEXITSTATUS(status)
+    return qemu_exit_status
