@@ -1,6 +1,6 @@
 let
-  ledgerPlatform-path = import ./dep/alamgu/thunk.nix;
-  pkgs-path = import (ledgerPlatform-path + "/dep/nixpkgs/thunk.nix");
+  alamgu-path = import ./dep/alamgu/thunk.nix;
+  pkgs-path = import (alamgu-path + "/dep/nixpkgs/thunk.nix");
   pkgsFunc = import pkgs-path;
   lib = import (pkgs-path + "/lib");
 
