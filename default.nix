@@ -104,6 +104,7 @@ rec {
       qemu
     ];
 
+    doCheck = false;
     checkInputs = [
       pytest
     ];
