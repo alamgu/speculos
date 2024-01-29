@@ -7,18 +7,17 @@ Emulate the target app along the SE Proxy Hal server.
 import argparse
 import binascii
 import ctypes
-from elftools.elf.elffile import ELFFile
 import logging
-from mnemonic import mnemonic
 import os
 import re
 import signal
 import socket
 import sys
 import threading
-
-from distutils.spawn import find_executable
 import pkg_resources
+from elftools.elf.elffile import ELFFile
+from mnemonic import mnemonic
+from typing import Optional, Type
 
 from .api import ApiRunner, EventsBroadcaster
 from .mcu import apdu as apdu_server
@@ -28,7 +27,9 @@ from .mcu import seproxyhal
 from .mcu.automation_server import AutomationClient, AutomationServer
 from .mcu.button_tcp import FakeButton
 from .mcu.finger_tcp import FakeFinger
+from .mcu.struct import DisplayArgs, ServerArgs
 from .mcu.vnc import VNC
+from .observer import BroadcastInterface
 
 
 DEFAULT_SEED = ('glory promote mansion idle axis finger extra february uncover one trip resource lawn turtle enact '
@@ -85,6 +86,7 @@ def get_elf_infos(app_path):
         bss = elf.get_section_by_name('.bss')
         sh_offset = text_seg['p_offset']
         sh_size = text_seg['p_filesz']
+        text_load_addr = text['sh_addr']
         stack = bss['sh_addr']
         sym_estack = symtab.get_symbol_by_name('_estack')
         if sym_estack is None:
@@ -93,10 +95,34 @@ def get_elf_infos(app_path):
             logger.error('failed to find _estack/END_STACK symbol')
             sys.exit(1)
         estack = sym_estack[0]['st_value']
+
+        # Look for the symbols SVC_Call and SVC_cx_call
+        # if they are found, save their addresses to patch them to replace the SYSCALL later
+        svc_call_addr = 0
+        svc_cx_call_addr = 0
+        svc_call_symbol = symtab.get_symbol_by_name("SVC_Call")
+        if svc_call_symbol is not None:
+            svc_call_addr = svc_call_symbol[0]['st_value'] & (~1)
+        svc_cx_call_symbol = symtab.get_symbol_by_name("SVC_cx_call")
+        if svc_cx_call_symbol is not None:
+            svc_cx_call_addr = svc_cx_call_symbol[0]['st_value'] & (~1)
+        # Check where are located fonts in .elf file (LNX/LNS+ only)
+        # (Stax fonts are loaded at a known location: STAX_FONTS_ARRAY_ADDR)
+        fonts_addr = 0
+        fonts_size = 0
+        bagl_fonts_symbol = symtab.get_symbol_by_name('C_bagl_fonts')
+        if bagl_fonts_symbol is not None:
+            fonts_addr = bagl_fonts_symbol[0]['st_value']
+            fonts_size = bagl_fonts_symbol[0]['st_size']
+            logger.info(f"Found C_bagl_fonts at 0x{fonts_addr:X} ({fonts_size} bytes)\n")
+        else:
+            logger.info("Disabling OCR.")
+
         supp_ram = elf.get_section_by_name('.rfbss')
         ram_addr, ram_size = (supp_ram['sh_addr'], supp_ram['sh_size']) if supp_ram is not None else (0, 0)
     stack_size = estack - stack
-    return sh_offset, sh_size, stack, stack_size, ram_addr, ram_size
+    return sh_offset, sh_size, stack, stack_size, ram_addr, ram_size, text_load_addr, \
+        svc_call_addr, svc_cx_call_addr, fonts_addr, fonts_size
 
 
 def get_cx_infos(app_path):
@@ -156,7 +182,9 @@ def run_qemu(s1: socket.socket, s2: socket.socket, args: argparse.Namespace) -> 
     app_path = getattr(args, 'app.elf')
     for lib in [f'main:{app_path}'] + args.library:
         name, lib_path = lib.split(':')
-        load_offset, load_size, stack, stack_size, ram_addr, ram_size = get_elf_infos(lib_path)
+        load_offset, load_size, stack, stack_size, ram_addr, ram_size, \
+            text_load_addr, svc_call_address, svc_cx_call_address, \
+            fonts_addr, fonts_size = get_elf_infos(lib_path)
         # Since binaries loaded as libs could also declare extra RAM page(s), collect them all
         if (ram_addr, ram_size) != (0, 0):
             arg = f'{ram_addr:#x}:{ram_size:#x}'
@@ -164,7 +192,11 @@ def run_qemu(s1: socket.socket, s2: socket.socket, args: argparse.Namespace) -> 
                 logger.error("different extra RAM pages for main app and/or libraries!")
                 sys.exit(1)
             extra_ram = arg
-        argv.append(f'{name}:{lib_path}:{load_offset:#x}:{load_size:#x}:{stack:#x}:{stack_size:#x}')
+        lib_arg = f'{name}:{lib_path}:{load_offset:#x}:{load_size:#x}'
+        lib_arg += f':{stack:#x}:{stack_size:#x}:{svc_call_address:#x}'
+        lib_arg += f':{svc_cx_call_address:#x}:{text_load_addr:#x}'
+        lib_arg += f':{fonts_addr:#x}:{fonts_size:#x}'
+        argv.append(lib_arg)
 
     if args.model == 'blue':
         if args.rampage:
@@ -195,6 +227,11 @@ def run_qemu(s1: socket.socket, s2: socket.socket, args: argparse.Namespace) -> 
     if args.deterministic_rng:
         os.environ['RNG_SEED'] = args.deterministic_rng
 
+    if args.user_private_key:
+        os.environ['USER_PRIVATE_KEY'] = args.user_private_key
+    if args.attestation_key:
+        os.environ['ATTESTATION_PRIVATE_KEY'] = args.attestation_key
+
     logger.debug(f"executing qemu: {argv}")
     try:
         os.execvp(argv[0], argv)
@@ -220,16 +257,7 @@ def setup_logging(args):
             sys.exit(1)
 
 
-def main(prog=None):
-    disable_tesseract = False
-    if not find_executable("tesseract"):
-        disable_tesseract = True
-        warning_message = "\n\n\n!****************************************************************!\n"
-        warning_message += "tesseract-ocr is not found and is required to run Speculos with ocr.\n"
-        warning_message += "Please run `sudo apt install tesseract-ocr`\n"
-        warning_message += "Speculos will continue without tesseract-ocr enabled\n"
-        warning_message += "!****************************************************************!\n\n\n"
-        logger.warn(warning_message)
+def main(prog=None) -> int:
 
     parser = argparse.ArgumentParser(description='Emulate Ledger Nano/Blue apps.')
     parser.add_argument('app.elf', type=str, help='application path')
@@ -237,8 +265,12 @@ def main(prog=None):
                                                        'to specify a path')
     parser.add_argument('--color', default='MATTE_BLACK', choices=list(display.COLORS.keys()), help='Nano color')
     parser.add_argument('-d', '--debug', action='store_true', help='Wait gdb connection to port 1234')
-    parser.add_argument('--deterministic-rng', default="", help='Seed the rng with a given value to produce '
+    parser.add_argument('--deterministic-rng', default='', help='Seed the rng with a given value to produce '
                                                                 'deterministic randomness')
+    parser.add_argument('--user-private-key', default='',
+                        help='32B in hex format, will be used as the user private keys')
+    parser.add_argument('--attestation-key', default='', help='32B in hex format, will be used as the private '
+                                                              'attestation key')
     parser.add_argument('-k', '--sdk', type=str, help='SDK version')
     parser.add_argument('-a', '--apiLevel', type=str, help='Api level')
     parser.add_argument('-l', '--library', default=[], action='append', help='Additional library (eg. '
@@ -275,9 +307,6 @@ def main(prog=None):
                                                         "left button, 'a' right, 's' both). Default: arrow keys")
     group.add_argument('--progressive', action='store_true', help='Enable step-by-step rendering of graphical elements')
     group.add_argument('--zoom', help='Display pixel size.', type=int, choices=range(1, 11))
-    group.add_argument('--force-full-ocr', action='store_true',
-                       help='Degrade screen display to enhance OCR capacities for inverted text (only for Stax)')
-    group.add_argument('--disable-tesseract', action='store_true', help='Disable tesseract OCR: only for stax')
 
     if prog:
         parser.prog = prog
@@ -395,12 +424,13 @@ def main(prog=None):
         logger.error("--vnc-password can only be used with --vnc-port")
         sys.exit(1)
 
+    ScreenNotifier: Type[display.DisplayNotifier]
     if args.display == 'text':
-        from .mcu.screen_text import TextScreen as Screen
+        from .mcu.screen_text import TextScreenNotifier as ScreenNotifier
     elif args.display == 'headless':
-        from .mcu.headless import Headless as Screen
+        from .mcu.headless import HeadlessNotifier as ScreenNotifier
     else:
-        from .mcu.screen import QtScreen as Screen
+        from .mcu.screen import QtScreenNotifier as ScreenNotifier
 
     if args.sdk and args.apiLevel:
         logger.error("Either SDK version or api level should be specified")
@@ -421,13 +451,15 @@ def main(prog=None):
 
     api_enabled = (args.api_port != 0)
 
-    automation_path = None
+    automation_path: Optional[automation.Automation] = None
     if args.automation:
+        # TODO: remove this condition and all associated code in next major version
         logger.warn("--automation is deprecated, please use the REST API instead")
         automation_path = automation.Automation(args.automation)
 
-    automation_server = None
+    automation_server: Optional[BroadcastInterface] = None
     if args.automation_port:
+        # TODO: remove this condition and all associated code in next major version
         logger.warn("--automation-port is deprecated, please use the REST API instead")
         if api_enabled:
             logger.warn("--automation-port is incompatible with the the API server, disabling the latter")
@@ -445,8 +477,12 @@ def main(prog=None):
     s1.close()
 
     apdu = apdu_server.ApduServer(host="0.0.0.0", port=args.apdu_port)
-    seph = seproxyhal.SeProxyHal(s2, automation=automation_path, automation_server=automation_server,
-                                 transport=args.usb)
+    seph = seproxyhal.SeProxyHal(
+        s2,
+        model=args.model,
+        automation=automation_path,
+        automation_server=automation_server,
+        transport=args.usb)
 
     button = None
     if args.button_port:
@@ -478,23 +514,23 @@ def main(prog=None):
     if args.xy:
         x, y = (int(i) for i in args.xy.split('x'))
 
-    apirun = None
+    apirun: Optional[ApiRunner] = None
     if api_enabled:
         apirun = ApiRunner(args.api_port)
 
-    if disable_tesseract:
-        args.disable_tesseract = True
+    display_args = DisplayArgs(args.color, args.model, args.ontop, rendering,
+                               args.keymap, zoom, x, y)
+    server_args = ServerArgs(apdu, apirun, button, finger, seph, vnc)
+    screen_notifier = ScreenNotifier(display_args, server_args)
 
-    display_args = display.DisplayArgs(args.color, args.model, args.ontop, rendering,
-                                       args.keymap, zoom, x, y, args.force_full_ocr,
-                                       args.disable_tesseract)
-    server_args = display.ServerArgs(apdu, apirun, button, finger, seph, vnc)
-    screen = Screen(display_args, server_args)
+    if apirun is not None:
+        assert automation_server is not None
+        apirun.start_server_thread(screen_notifier, seph, automation_server)
 
-    if api_enabled:
-        apirun.start_server_thread(screen, seph, automation_server)
+    screen_notifier.run()
 
-    screen.run()
+    if apirun is not None:
+        apirun.stop()
 
     s2.close()
     _, status = os.waitpid(qemu_pid, 0)

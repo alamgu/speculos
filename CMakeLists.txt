@@ -58,12 +58,12 @@ endif()
 include_directories(${INSTALL_DIR}/include)
 link_directories(${INSTALL_DIR}/lib)
 
-link_libraries(ssl crypto dl pthread)
+link_libraries(ssl crypto dl blst pthread)
 
 add_subdirectory(src)
 
 if (BUILD_TESTING)
-  add_subdirectory(tests/syscalls)
+  add_subdirectory(tests/c/)
 endif()
 
 # if (WITH_VNC)

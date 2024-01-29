@@ -13,9 +13,13 @@
 #include <unistd.h>
 
 #include "emulate.h"
+#include "environment.h"
+#include "fonts.h"
 #include "svc.h"
 
 #define LOAD_ADDR     ((void *)0x40000000)
+#define LINK_RAM_ADDR (0xda7a0000)
+#define LOAD_RAM_ADDR (0x50000000)
 #define MAX_APP       16
 #define MAIN_APP_NAME "main"
 
@@ -29,6 +33,11 @@ struct elf_info_s {
   unsigned long load_size;
   unsigned long stack_addr;
   unsigned long stack_size;
+  unsigned long svc_call_addr;
+  unsigned long svc_cx_call_addr;
+  unsigned long text_load_addr;
+  unsigned long fonts_addr;
+  unsigned long fonts_size;
 };
 
 struct app_s {
@@ -120,6 +129,11 @@ static int open_app(char *name, char *filename, struct elf_info_s *elf)
   apps[napp].elf.load_size = elf->load_size;
   apps[napp].elf.stack_addr = elf->stack_addr;
   apps[napp].elf.stack_size = elf->stack_size;
+  apps[napp].elf.svc_call_addr = elf->svc_call_addr;
+  apps[napp].elf.svc_cx_call_addr = elf->svc_cx_call_addr;
+  apps[napp].elf.text_load_addr = elf->text_load_addr;
+  apps[napp].elf.fonts_addr = elf->fonts_addr;
+  apps[napp].elf.fonts_size = elf->fonts_size;
 
   napp++;
 
@@ -140,6 +154,25 @@ static void reset_memory(bool unload_data)
 struct app_s *get_current_app(void)
 {
   return current_app;
+}
+
+// On old versions of the SDK, functions SVC_Call and SVC_cx_call were inlined
+// In this case we can't look for the symbols in the elf to only patch the SVC_1
+// inside of these functions
+static bool is_svc_inlined(void)
+{
+  switch (sdk_version) {
+  case SDK_BLUE_1_5:
+  case SDK_BLUE_2_2_5:
+  case SDK_NANO_S_1_5:
+  case SDK_NANO_S_1_6:
+  case SDK_NANO_X_1_2:
+    return true;
+    break;
+  default:
+    return false;
+    break;
+  }
 }
 
 int replace_current_code(struct app_s *app)
@@ -166,9 +199,44 @@ int replace_current_code(struct app_s *app)
     return -1;
   }
 
-  if (patch_svc(memory.code, app->elf.load_size) != 0) {
-    /* this should never happen, because the svc were already patched without
-     * error during the first load */
+  if (mprotect(memory.code, app->elf.load_size, PROT_READ | PROT_WRITE) != 0) {
+    warn("could not update mprotect in rw mode for app");
+    _exit(1);
+  }
+
+  // If the syscall functions are not inlined and their symbols have been found
+  // in the elf file, patch the elf at this address to remove the SVC 1 call
+  if (!is_svc_inlined() &&
+      (app->elf.svc_call_addr != 0 || app->elf.svc_cx_call_addr != 0)) {
+    if (app->elf.svc_call_addr != 0) {
+      uint32_t start = app->elf.svc_call_addr - app->elf.text_load_addr;
+
+      if (patch_svc(memory.code + start, 2) != 0) {
+        /* this should never happen, because the svc were already patched
+         * without error during the first load */
+        _exit(1);
+      }
+    }
+
+    if (app->elf.svc_cx_call_addr != 0) {
+      uint32_t start = app->elf.svc_cx_call_addr - app->elf.text_load_addr;
+
+      if (patch_svc(memory.code + start, 2) != 0) {
+        /* this should never happen, because the svc were already patched
+         * without error during the first load */
+        _exit(1);
+      }
+    }
+  } else {
+    if (patch_svc(memory.code, app->elf.load_size) != 0) {
+      /* this should never happen, because the svc were already patched
+       * without error during the first load */
+      _exit(1);
+    }
+  }
+
+  if (mprotect(memory.code, app->elf.load_size, PROT_READ | PROT_EXEC) != 0) {
+    warn("could not update mprotect in rx mode for app");
     _exit(1);
   }
 
@@ -234,6 +302,11 @@ static void *load_app(char *name)
   data_addr = get_lower_page_aligned_addr(app->elf.stack_addr);
   data_size = get_upper_page_aligned_size(
       app->elf.stack_size + app->elf.stack_addr - (unsigned long)data_addr);
+  if (app->elf.stack_addr == LINK_RAM_ADDR) {
+    // Emulate RAM relocation
+    data_addr = (void *)LOAD_RAM_ADDR;
+    data_size = get_upper_page_aligned_size(app->elf.stack_size);
+  }
 
   /* load code
    * map an extra page in case the _install_params are mapped in the beginning
@@ -293,7 +366,38 @@ static void *load_app(char *name)
     }
   }
 
-  if (patch_svc(code, size) != 0) {
+  if (mprotect(code, size, PROT_READ | PROT_WRITE) != 0) {
+    warn("could not update mprotect in rw mode for app");
+    goto error;
+  }
+
+  // If the syscall functions are not inlined and their symbols have been found
+  // in the elf file, patch the elf at this address to remove the SVC 1 call
+  if (!is_svc_inlined() &&
+      (app->elf.svc_call_addr != 0 || app->elf.svc_cx_call_addr != 0)) {
+    if (app->elf.svc_call_addr != 0) {
+      uint32_t start = app->elf.svc_call_addr - app->elf.text_load_addr;
+
+      if (patch_svc(code + start, 2) != 0) {
+        goto error;
+      }
+    }
+
+    if (app->elf.svc_cx_call_addr != 0) {
+      uint32_t start = app->elf.svc_cx_call_addr - app->elf.text_load_addr;
+
+      if (patch_svc(code + start, 2) != 0) {
+        goto error;
+      }
+    }
+  } else {
+    if (patch_svc(code, app->elf.load_size) != 0) {
+      goto error;
+    }
+  }
+
+  if (mprotect(code, size, PROT_READ | PROT_EXEC) != 0) {
+    warn("could not update mprotect in rx mode for app");
     goto error;
   }
 
@@ -337,15 +441,19 @@ static int load_fonts(char *fonts_path)
 
   if (sdk_version == SDK_API_LEVEL_1 || sdk_version == SDK_API_LEVEL_3 ||
       sdk_version == SDK_API_LEVEL_5) {
-    load_addr = 0x00805000;
+    load_addr = STAX_FONTS_ARRAY_ADDR;
     load_size = 20480;
   } else if (sdk_version == SDK_API_LEVEL_7) {
-    load_addr = 0x00805000;
+    load_addr = STAX_FONTS_ARRAY_ADDR;
     load_size = 45056;
   } else if ((sdk_version == SDK_API_LEVEL_8 ||
               sdk_version == SDK_API_LEVEL_9 ||
-              sdk_version == SDK_API_LEVEL_10)) {
-    load_addr = 0x00805000;
+              sdk_version == SDK_API_LEVEL_10 ||
+              sdk_version == SDK_API_LEVEL_11 ||
+              sdk_version == SDK_API_LEVEL_12 ||
+              sdk_version == SDK_API_LEVEL_13 ||
+              sdk_version == SDK_API_LEVEL_14)) {
+    load_addr = STAX_FONTS_ARRAY_ADDR;
     load_size = 40960;
   } else {
     warn("Invalid sdk version for fonts");
@@ -406,11 +514,21 @@ static int load_cxlib(char *cxlib_args)
     }
   }
 
+  if (mprotect(p, sh_size, PROT_READ | PROT_WRITE) != 0) {
+    warn("could not update mprotect in rw mode for cxlib");
+    return -1;
+  }
+
   if (patch_svc(p, sh_size) != 0) {
     if (munmap(p, sh_size) != 0) {
       warn("munmap");
     }
     close(fd);
+    return -1;
+  }
+
+  if (mprotect(p, sh_size, PROT_READ | PROT_EXEC) != 0) {
+    warn("could not update mprotect in rx mode for cxlib");
     return -1;
   }
 
@@ -431,10 +549,18 @@ static int run_app(char *name, unsigned long *parameters)
 
   app = get_current_app();
 
+  // Parse fonts and build bitmap -> character table
+  parse_fonts(memory.code, app->elf.text_load_addr, app->elf.fonts_addr,
+              app->elf.fonts_size);
+
   /* thumb mode */
   f = (void *)((unsigned long)p | 1);
   stack_end = app->elf.stack_addr;
-  stack_start = app->elf.stack_addr + app->elf.stack_size;
+  if (app->elf.stack_addr == LINK_RAM_ADDR) {
+    // Emulate RAM relocation
+    stack_end = LOAD_RAM_ADDR;
+  }
+  stack_start = stack_end + app->elf.stack_size;
 
   asm volatile("mov r0, %2\n"
                "mov r9, %1\n"
@@ -487,10 +613,12 @@ static char *parse_app_infos(char *arg, char **filename, struct elf_info_s *elf)
     err(1, "strdup");
   }
 
-  ret = sscanf(arg, "%[^:]:%[^:]:0x%lx:0x%lx:0x%lx:0x%lx", libname, *filename,
-               &elf->load_offset, &elf->load_size, &elf->stack_addr,
-               &elf->stack_size);
-  if (ret != 6) {
+  ret = sscanf(
+      arg, "%[^:]:%[^:]:0x%lx:0x%lx:0x%lx:0x%lx:0x%lx:0x%lx:0x%lx:0x%lx:0x%lx",
+      libname, *filename, &elf->load_offset, &elf->load_size, &elf->stack_addr,
+      &elf->stack_size, &elf->svc_call_addr, &elf->svc_cx_call_addr,
+      &elf->text_load_addr, &elf->fonts_addr, &elf->fonts_size);
+  if (ret != 11) {
     warnx("failed to parse app infos (\"%s\", %d)", arg, ret);
     free(libname);
     free(*filename);
@@ -536,6 +664,14 @@ static sdk_version_t apilevelstr2sdkver(const char *api_level_arg)
     return SDK_API_LEVEL_9;
   } else if (strcmp("10", api_level_arg) == 0) {
     return SDK_API_LEVEL_10;
+  } else if (strcmp("11", api_level_arg) == 0) {
+    return SDK_API_LEVEL_11;
+  } else if (strcmp("12", api_level_arg) == 0) {
+    return SDK_API_LEVEL_12;
+  } else if (strcmp("13", api_level_arg) == 0) {
+    return SDK_API_LEVEL_13;
+  } else if (strcmp("14", api_level_arg) == 0) {
+    return SDK_API_LEVEL_14;
   } else {
     return SDK_COUNT;
   }
@@ -665,7 +801,7 @@ int main(int argc, char *argv[])
   case MODEL_NANO_X:
     if (sdk_version != SDK_NANO_X_1_2 && sdk_version != SDK_NANO_X_2_0 &&
         sdk_version != SDK_NANO_X_2_0_2 && sdk_version != SDK_API_LEVEL_1 &&
-        sdk_version != SDK_API_LEVEL_5) {
+        sdk_version != SDK_API_LEVEL_5 && sdk_version != SDK_API_LEVEL_12) {
       errx(1, "invalid SDK version for the Ledger Nano X");
     }
     break;
@@ -676,7 +812,8 @@ int main(int argc, char *argv[])
     break;
   case MODEL_NANO_SP:
     if (sdk_version != SDK_NANO_SP_1_0 && sdk_version != SDK_NANO_SP_1_0_3 &&
-        sdk_version != SDK_API_LEVEL_1 && sdk_version != SDK_API_LEVEL_5) {
+        sdk_version != SDK_API_LEVEL_1 && sdk_version != SDK_API_LEVEL_5 &&
+        sdk_version != SDK_API_LEVEL_12) {
       errx(1, "invalid SDK version for the Ledger NanoSP");
     }
     break;
@@ -684,7 +821,9 @@ int main(int argc, char *argv[])
     if (sdk_version != SDK_API_LEVEL_1 && sdk_version != SDK_API_LEVEL_3 &&
         sdk_version != SDK_API_LEVEL_5 && sdk_version != SDK_API_LEVEL_7 &&
         sdk_version != SDK_API_LEVEL_8 && sdk_version != SDK_API_LEVEL_9 &&
-        sdk_version != SDK_API_LEVEL_10) {
+        sdk_version != SDK_API_LEVEL_10 && sdk_version != SDK_API_LEVEL_11 &&
+        sdk_version != SDK_API_LEVEL_12 && sdk_version != SDK_API_LEVEL_13 &&
+        sdk_version != SDK_API_LEVEL_14) {
       errx(1, "invalid SDK version for the Ledger Stax");
     }
     break;
@@ -706,11 +845,15 @@ int main(int argc, char *argv[])
       sdk_version == SDK_API_LEVEL_1 || sdk_version == SDK_API_LEVEL_3 ||
       sdk_version == SDK_API_LEVEL_5 || sdk_version == SDK_API_LEVEL_7 ||
       sdk_version == SDK_API_LEVEL_8 || sdk_version == SDK_API_LEVEL_9 ||
-      sdk_version == SDK_API_LEVEL_10) {
+      sdk_version == SDK_API_LEVEL_10 || sdk_version == SDK_API_LEVEL_11 ||
+      sdk_version == SDK_API_LEVEL_12 || sdk_version == SDK_API_LEVEL_13 ||
+      sdk_version == SDK_API_LEVEL_14) {
     if (load_cxlib(cxlib_path) != 0) {
       return 1;
     }
   }
+
+  init_environment();
 
   if (hw_model == MODEL_STAX && fonts_path) {
     if (load_fonts(fonts_path) != 0) {

@@ -1,12 +1,20 @@
-from typing import List, Mapping
-from dataclasses import dataclass
-from PIL import Image
-from pytesseract import image_to_data, Output
 import functools
 import string
-
-from .automation import TextEvent
+from dataclasses import dataclass
+from typing import Dict, List, Mapping
+from speculos.observer import TextEvent
 from . import bagl_font
+
+from construct import Struct, Int8ul, Int16ul
+
+nbgl_area_t = Struct(
+    "x0" / Int16ul,
+    "y0" / Int16ul,
+    "width" / Int16ul,
+    "height" / Int16ul,
+    "color" / Int8ul,
+    "bpp" / Int8ul,
+)
 
 MIN_WORD_CONFIDENCE_LVL = 0  # percent
 NEW_LINE_THRESHOLD = 10  # pixels
@@ -18,7 +26,13 @@ CharWidth = Width
 Char = str  # a single character string (chars are 1-char strings in Python)
 
 
-__FONT_MAP = {}
+@dataclass
+class BitMapChar:
+    char: bagl_font.FontCharacter
+    bitmap: bytes
+
+
+__FONT_MAP: Dict[int, Mapping[str, BitMapChar]] = {}
 
 DISPLAY_CHARS = string.ascii_letters + string.digits + string.punctuation
 
@@ -32,12 +46,6 @@ def cache_font(f):
             __font_char_cache[byte_string] = f(byte_string)
         return __font_char_cache[byte_string]
     return wrapper
-
-
-@dataclass
-class BitMapChar:
-    char: bagl_font.FontCharacter
-    bitmap: bytes
 
 
 def split(bits: BitVector, n: Width) -> List[BitVector]:
@@ -78,8 +86,8 @@ def get_char(font: bagl_font.Font, char: str) -> BitMapChar:
 
 
 def display_char(font: bagl_font.Font, char: str) -> None:
-    char = get_char(font, char)
-    print("\n".join(split_bytes(char.bitmap, font.bpp * char.char.char_width)))
+    bm_char = get_char(font, char)
+    print("\n".join(split_bytes(bm_char.bitmap, font.bpp * bm_char.char.char_width)))
 
 
 def get_font_map(font: bagl_font.Font):
@@ -107,69 +115,145 @@ def _get_font_map(font: bagl_font.Font) -> Mapping[Char, BitMapChar]:
     return font_map
 
 
-@cache_font
-def find_char_from_bitmap(bitmap: BitMap):
-    """
-     Find a character from a bitmap
-    >>> font = get_font(4)
-    >>> char = get_char(font, 'c')
-    >>> find_char_from_bitmap(char.bitmap)
-    'c'
-    """
-    all_values = []
-    for font in bagl_font.FONTS:
-        font_map = get_font_map(font)
-        for character_value, bitmap_struct in font_map.items():
-            if bitmap_struct.bitmap.startswith(bitmap):
-                # sometimes (but not always) the bitmap being passed is shortened
-                # by one '\x00' byte, not matching the exact bitmap
-                # provided in the font. Hence the 'residual' computation
-                residual_bytes: bytes = bitmap_struct.bitmap[len(bitmap):]
-                if all(b == 0 for b in residual_bytes):
-                    all_values.append(character_value)
-        if all_values:
-            char = max([x for x in all_values])
-            if char == "\x80":
-                char = " "
-            return char
-
-
 class OCR:
-    def __init__(self):
+
+    # Maximum space for a letter to be considered part of the same word
+    MAX_BLANK_SPACE_NANO = 12
+    MAX_BLANK_SPACE_STAX = 24
+
+    def __init__(self, model: str):
         self.events: List[TextEvent] = []
+        # Store the model of the device
+        self.model = model
+        # Maximum space for a letter to be considered part of the same word
+        if model == "stax":
+            self.max_blank_space = OCR.MAX_BLANK_SPACE_STAX
+        else:
+            self.max_blank_space = OCR.MAX_BLANK_SPACE_NANO
 
-    def analyze_bitmap(self, data: bytes):
-        if data[0] != 0:
-            return
+    @staticmethod
+    def find_char_from_bitmap(bitmap: BitMap) -> str:
+        """
+        Find a character from a bitmap
+        >>> font = get_font(4)
+        >>> char = get_char(font, 'c')
+        >>> find_char_from_bitmap(char.bitmap)
+        'c'
+        """
+        all_values = []
+        for font in bagl_font.FONTS:
+            font_map = get_font_map(font)
+            for character_value, bitmap_struct in font_map.items():
+                if bitmap_struct.bitmap.startswith(bitmap):
+                    # sometimes (but not always) the bitmap being passed is shortened
+                    # by one '\x00' byte, not matching the exact bitmap
+                    # provided in the font. Hence the 'residual' computation
+                    residual_bytes: bytes = bitmap_struct.bitmap[len(bitmap):]
+                    if all(b == 0 for b in residual_bytes):
+                        all_values.append(character_value)
+            if all_values:
+                char = max([x for x in all_values])
+                if char == "\x80":
+                    char = " "
+                return char
+        return ""
 
-        x = int.from_bytes(data[1:3], byteorder="big", signed=True)
-        y = int.from_bytes(data[3:5], byteorder="big", signed=True)
-        bpp = int.from_bytes(data[9:10], byteorder="big")
-        color_size = 4 * (1 << bpp)
-        bitmap = data[10+color_size:]
-
-        char = find_char_from_bitmap(bitmap)
+    def find_bitmap(self, x: int, y: int, w: int, h: int, bitmap: bytes) -> None:
+        char = self.find_char_from_bitmap(bitmap)
         if char:
             if self.events and y <= self.events[-1].y:
                 self.events[-1].text += char
             else:
-                # create a new TextEvent if there are no events yet or if there is a new line
-                self.events.append(TextEvent(char, x, y))
+                # create a new TextEvent if there are no events yet
+                # or if there is a new line
+                self.events.append(TextEvent(char, x, y, w, h))
 
-    def analyze_image(self, screen_size: (int, int), data: bytes):
-        image = Image.frombytes("RGB", screen_size, data)
-        data = image_to_data(image, output_type=Output.DICT)
-        new_text_has_been_added = False
-        for item in range(len(data["text"])):
-            if (data["conf"][item] > MIN_WORD_CONFIDENCE_LVL):
-                if new_text_has_been_added and self.events and \
-                   data["top"][item] <= self.events[-1].y + NEW_LINE_THRESHOLD:
-                    self.events[-1].text += " "+data["text"][item]
-                else:
-                    x = data["left"][item]
-                    y = data["top"][item]
-                    self.events.append(TextEvent(data['text'][item], x, y))
-                    new_text_has_been_added = True
+    def store_char_in_last_event(self, x: int, y: int, w: int, h: int, char: str) -> None:
+        """
+        Add current character to last event
+        """
+        self.events[-1].text += char
+        # Update w for all chars in self.events[-1]
+        x2 = x + w - 1
+        self.events[-1].w = x2 - self.events[-1].x + 1
+        # Update y & h, if needed, for all chars in self.events[-1]
+        y1 = y
+        if y1 > self.events[-1].y:
+            # Keep the lowest Y in Y1
+            y1 = self.events[-1].y
+        y2 = y + h - 1
+        if y2 < (self.events[-1].y + self.events[-1].h):
+            # Keep the highest Y in Y2
+            y2 = self.events[-1].y + self.events[-1].h - 1
+        self.events[-1].y = y1
+        self.events[-1].h = y2 - y1 + 1
+
+    def add_character(self, x: int, y: int, w: int, h: int, char: str) -> None:
+        """
+        Add the provided character to previous event or create a new one
+        """
+        # Compute difference with X coord from previous event
+        # if x_diff > self.max_blank_space the char is not on same sentence
+        if self.events:
+            x_diff = x - (self.events[-1].x + self.events[-1].w)
+            if x_diff < 0:
+                x_diff = -x_diff
+            # Try to find if that char can be added to previous event
+            if y < (self.events[-1].y + self.events[-1].h) \
+               and x_diff < self.max_blank_space:
+                # Add this character to previous event
+                self.store_char_in_last_event(x, y, w, h, char)
+                return
+
+        # create a new TextEvent if there are no events yet or if there is a new line
+        self.events.append(TextEvent(char, x, y, w, h))
+
+    def analyze_bitmap(self, data: bytes) -> None:
+        """
+        data contain information about the latest displayed bitmap.
+        Since unified SDK, speculos added the displayed character to data.
+        For older SKD versions, legacy behaviour is used: parsing internal
+        fonts to find a matching bitmap.
+        """
+        if self.model == "stax":
+            # Can be called via SephTag.NBGL_DRAW_IMAGE or SephTag.NBGL_DRAW_IMAGE_RLE
+            # In both cases, data contains:
+            # - area (sizeof(nbgl_area_t))
+            # - compressed bitmap (buffer_len)
+            # - 2 bytes of different meaning depending on SephTag
+            # - 4 bytes with unicode code point of displayed character
+            area = nbgl_area_t.parse(data[0:nbgl_area_t.sizeof()])
+            x, y, w, h = area.x0, area.y0, area.width, area.height
+            character = int.from_bytes(data[-4:], byteorder="little", signed=False)
+            bitmap = data[nbgl_area_t.sizeof():-(2+4)]
+        else:
+            if data[0] != 0:
+                return
+
+            x = int.from_bytes(data[1:3], byteorder="big", signed=True)
+            y = int.from_bytes(data[3:5], byteorder="big", signed=True)
+            w = int.from_bytes(data[5:7], byteorder="big", signed=True)
+            h = int.from_bytes(data[7:9], byteorder="big", signed=True)
+            bpp = int.from_bytes(data[9:10], byteorder="big")
+            character = int.from_bytes(data[10:14], byteorder="big", signed=False)
+            color_size = 4 * (1 << bpp)
+            bitmap = data[14+color_size:]
+
+            # h may no reflect the real height: use number of lines displayed
+            h = (len(bitmap) * 8) // w
+            if (len(bitmap) * 8) % w:
+                h += 1
+
+        # Space is now encoded as an empty character (no 'space' wasted :)
+        if len(bitmap) == 0:
+            character = 32
+
+        # If data contains a character, don't bother doing OCR, just store it!
+        if character != 0:
+            char = chr(character)
+            self.add_character(x, y, w, h, char)
+        else:
+            self.find_bitmap(x, y, w, h, bitmap)
 
     def get_events(self) -> List[TextEvent]:
         events = self.events.copy()

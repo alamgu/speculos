@@ -6,6 +6,9 @@ add_library(emu
         bolos/cx_aes.c
         bolos/cx_aes_sdk2.c
         bolos/cx_blake2b.c
+        bolos/cx_bls.c
+        bolos/cx_bls_fp2.c
+        bolos/cx_bls_g2.c
         bolos/cx_bn.c
         bolos/cx_curve25519.c
         bolos/cx_crc.c
@@ -28,6 +31,7 @@ add_library(emu
         bolos/cx_weierstrass.c
         bolos/cxlib.c
         bolos/bagl.c
+        bolos/fonts_info.c
         bolos/nbgl.c
         bolos/nbgl_rle.c
         bolos/touch.c
@@ -52,6 +56,7 @@ add_library(emu
         emulate_blue_2.2.5.c
         emulate_lnsp_1.0.c
         emulate_unified_sdk.c
+        environment.c
         svc.c)
 
 target_link_libraries(emu ssl crypto)

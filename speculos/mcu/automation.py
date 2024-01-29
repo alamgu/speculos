@@ -1,17 +1,9 @@
-from dataclasses import dataclass
 import json
 import jsonschema
 import logging
 import os
 import pkg_resources
 import re
-
-
-@dataclass
-class TextEvent:
-    text: str
-    x: int
-    y: int
 
 
 class Automation:

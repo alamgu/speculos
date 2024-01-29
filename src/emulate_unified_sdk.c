@@ -16,6 +16,10 @@
 #define SYSCALL_HANDLED     1
 #define SYSCALL_NOT_HANDLED 0
 
+// Indicates whether the XOR in the CBC mode is implemented in the CX lib
+// or in the AES low level function
+extern bool hdw_cbc;
+
 /* Handle bagl related syscalls which behavior are defined in src/bolos/bagl.c
  */
 int emulate_syscall_bagl(unsigned long syscall, unsigned long *parameters,
@@ -114,11 +118,18 @@ int emulate_syscall_nbgl(unsigned long syscall, unsigned long *parameters,
              unsigned int,     buffer_len,
              color_t,          fore_color);
 
-    SYSCALL4(nbgl_front_draw_img_rle, "%p, %p, %u, %u",
+    SYSCALL4(nbgl_front_draw_img_rle_10, "%p, %p, %u, %u",
              nbgl_area_t *,    area,
              uint8_t *,        buffer,
              unsigned int,     buffer_len,
              color_t,          fore_color);
+
+    SYSCALL5(nbgl_front_draw_img_rle, "%p, %p, %u, %u, %u",
+             nbgl_area_t *,    area,
+             uint8_t *,        buffer,
+             unsigned int,     buffer_len,
+             color_t,          fore_color,
+             uint8_t,          nb_skipped_bytes);
 
   /* clang-format on */
   default:
@@ -159,8 +170,15 @@ int emulate_syscall_cx(unsigned long syscall, unsigned long *parameters,
                        unsigned long *ret, bool verbose, sdk_version_t version,
                        hw_model_t model)
 {
-  (void)version;
   (void)model;
+
+  // Starting from API level 12, the XOR operation of the CBC mode
+  // is not in CX LIB anymore
+  // CBC mode must be implemented
+  // in the AES low level functions
+  if (version >= SDK_API_LEVEL_12) {
+    hdw_cbc = true;
+  }
 
   switch (syscall) {
     /* clang-format off */
@@ -515,7 +533,48 @@ int emulate_syscall_cx(unsigned long syscall, unsigned long *parameters,
              bool *,   ptr);
 
     SYSCALL1(cx_bn_next_prime, "(%u)",
-             uint32_t, a)
+             uint32_t, a);
+
+    SYSCALL5(cx_bn_gf2_n_mul, "(%u, %u, %u, %u, %u)",
+             uint32_t, r,
+             uint32_t, a,
+             uint32_t, b,
+             uint32_t, n,
+             uint32_t, h);
+
+    SYSCALL10(cx_bls12381_key_gen, "(%u, %p, %u, %p, %u, %p, %u, %p, %p, %u)",
+              uint8_t, mode,
+              uint8_t *, secret,
+              size_t, secret_len,
+              uint8_t *, salt,
+              size_t, salt_len,
+              uint8_t *, key_info,
+              size_t, key_info_len,
+              void *, private_key,
+              uint8_t *, public_key,
+              size_t, public_key_len);
+
+    SYSCALL6(cx_hash_to_field, "(%p, %u, %p, %u, %p, %u)",
+             uint8_t *, msg,
+             size_t, msg_len,
+             uint8_t *, dst,
+             size_t, dst_len,
+             uint8_t *, hash,
+             size_t, hash_len);
+
+    SYSCALL5(ox_bls12381_sign, "(%p, %p, %u, %p, %u)",
+             cx_ecfp_384_private_key_t *, key,
+             uint8_t *, msg,
+             size_t, msg_len,
+             uint8_t *, sign,
+             size_t, sign_len);
+
+    SYSCALL5(cx_bls12381_aggregate, "(%p, %u, %d, %p, %u)",
+             uint8_t *, in,
+             size_t, in_len,
+             bool, first,
+             uint8_t *, agg_sign,
+             size_t, sign_len);
 
   /* clang-format on */
   default:

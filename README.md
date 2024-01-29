@@ -3,9 +3,9 @@
 [![codecov](https://codecov.io/gh/LedgerHQ/speculos/branch/master/graph/badge.svg)](https://codecov.io/gh/LedgerHQ/speculos)
 [![lgtm](https://img.shields.io/lgtm/alerts/g/LedgerHQ/speculos.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/LedgerHQ/speculos/alerts/)
 
-![screenshot btc nano s](docs/screenshot-api-nanos-btc.png)
+![screenshot btc nano s](https://raw.githubusercontent.com/LedgerHQ/speculos/master/docs/screenshot-api-nanos-btc.png)
 
-The goal of this project is to emulate Ledger Nano S, Nano X and Blue apps on
+The goal of this project is to emulate Ledger Nano S/S+, Nano X, Blue and Stax apps on
 standard desktop computers, without any hardware device. More information can
 be found here in the
 [documentation website](https://ledgerhq.github.io/speculos) (or in the
@@ -33,17 +33,43 @@ being merged to `master`:
 
 ## Limitations
 
-The emulator handles only a few syscalls made by common apps; for instance,
+There is absolutely no guarantee that apps will have the same behavior on
+hardware devices and Speculos, though the differences are limited.
+
+### Syscalls
+
+The emulator handles only a few syscalls made by common apps. For instance,
 syscalls related to app install, firmware update or OS info can't be
 implemented.
 
-There is absolutely no guarantee that apps will have the same behavior on
-hardware devices and Speculos:
+Invalid syscall parameters might throw an exception on a real device while
+being ignored on Speculos.
+Notably, this is the case for application allowed derivation path and curve and
+application settings flags which are enforced by the device OS, but ignored by
+Speculos.
 
-- Invalid syscall parameters might throw an exception on a real device while
-  being ignored on Speculos.
-- Attempts to perform unaligned accesses when not allowed (eg. dereferencing a
-  misaligned pointer) will cause an alignment fault on a hardware device.
+### Memory alignment
+
+Attempts to perform unaligned accesses when not allowed (eg. dereferencing a
+misaligned pointer) will cause an alignment fault on a Ledger Nano S device but
+not on Speculos. Note that such unaligned accesses are supported by other
+Ledger devices.
+
+Following code crashes on LNS device, but not on Speculos nor on other devices.
+```
+uint8_t buffer[20];
+for (int i = 0; i < 20; i++) {
+    buffer[i] = i;
+}
+uint32_t display_value = *((uint32_t*) (buffer + 1));
+PRINTF("display_value: %d\n", display_value);
+```
+
+### Watchdog
+
+NanoX and Stax devices use an internal watchdog enforcing usage of regular
+calls to `io_seproxyhal_io_heartbeat();`. This watchdog is not emulated on
+Speculos.
 
 
 ## Security

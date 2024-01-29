@@ -134,6 +134,8 @@ cx_err_t cx_mpi_mod_pow(cx_mpi_t *r, const cx_mpi_t *a, const cx_mpi_t *e,
                         const cx_mpi_t *n);
 cx_err_t cx_mpi_is_prime(cx_mpi_t *x, bool *prime);
 cx_err_t cx_mpi_next_prime(cx_mpi_t *x);
+cx_err_t cx_mpi_gf2_n_mul(cx_mpi_t *r, const cx_mpi_t *a, const cx_mpi_t *b,
+                          const cx_mpi_t *n, const cx_mpi_t *h);
 void cx_mpi_reverse(cx_mpi_t *x, uint32_t nbytes);
 void cx_mpi_swap(cx_mpi_t *a, cx_mpi_t *b, const int c);
 
@@ -196,6 +198,9 @@ cx_err_t sys_cx_bn_mod_pow2(cx_bn_t bn_r, const cx_bn_t bn_a, const uint8_t *e,
                             uint32_t len_e, const cx_bn_t bn_n);
 cx_err_t sys_cx_bn_is_prime(const cx_bn_t bn_x, bool *prime);
 cx_err_t sys_cx_bn_next_prime(const cx_bn_t bn_x);
+cx_err_t sys_cx_bn_gf2_n_mul(cx_bn_t bn_r, const cx_bn_t bn_a,
+                             const cx_bn_t bn_b, const cx_bn_t bn_n,
+                             const cx_bn_t bn_h);
 
 // cx_ecdomain.c
 int cx_nid_from_curve(cx_curve_t curve);
@@ -284,3 +289,18 @@ cx_err_t sys_cx_ecpoint_x25519(const cx_bn_t bn_u, const uint8_t *k,
                                size_t k_len);
 cx_err_t sys_cx_ecpoint_x448(const cx_bn_t bn_u, const uint8_t *k,
                              size_t k_len);
+cx_err_t sys_cx_bls12381_key_gen(uint8_t mode, const uint8_t *secret,
+                                 size_t secret_len, const uint8_t *salt,
+                                 size_t salt_len, uint8_t *key_info,
+                                 size_t key_info_len,
+                                 cx_ecfp_384_private_key_t *private_key,
+                                 uint8_t *public_key, size_t public_key_len);
+cx_err_t sys_cx_hash_to_field(const uint8_t *msg, size_t msg_len,
+                              const uint8_t *dst, size_t dst_len, uint8_t *hash,
+                              size_t hash_len);
+cx_err_t sys_ox_bls12381_sign(const cx_ecfp_384_private_key_t *key,
+                              uint8_t *message, size_t message_len,
+                              uint8_t *signature, size_t signature_len);
+cx_err_t sys_cx_bls12381_aggregate(const uint8_t *in, size_t in_len, bool first,
+                                   uint8_t *aggregated_signature,
+                                   size_t signature_len);
