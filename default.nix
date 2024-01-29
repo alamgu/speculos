@@ -27,7 +27,7 @@ rec {
 
   src = mkCleanSrc ./.;
 
-  launcher = speculosPkgs.callPackage ({ stdenv, cmake, ninja, perl, pkg-config, openssl, cmocka }: stdenv.mkDerivation {
+  launcher = speculosPkgs.callPackage ({ stdenv, cmake, ninja, perl, pkg-config, openssl, cmocka, blst }: stdenv.mkDerivation {
     name = "speculos";
 
     inherit src;
@@ -50,6 +50,10 @@ rec {
         static = true;
       }))
       cmocka
+      (blst.overrideAttrs (old: {
+        # TODO: find a better way to specify -Wno-error
+        postUnpack = "sed -i '/-Werror/d' source/build.sh";
+      }))
     ];
   }) {
     openssl = speculosPkgs.openssl_1_1;
@@ -62,10 +66,10 @@ rec {
   speculos = pkgs.python3Packages.callPackage (
   { buildPythonApplication, python3, qemu, makeWrapper 
   , pyqt5, construct, mnemonic, pyelftools, setuptools, jsonschema, flask, flask-restful, pillow, requests, pytesseract
-  , pytest
+  , pytest, pytest-cov, setuptools_scm
   }: buildPythonApplication {
     pname = "speculos";
-    version = "git";
+    version = "0.5.0";
 
     inherit src;
 
@@ -104,9 +108,13 @@ rec {
       qemu
     ];
 
+    nativeBuildInputs = [ setuptools_scm ];
+    SETUPTOOLS_SCM_PRETEND_VERSION = "0.5.0";
+
     doCheck = false;
     checkInputs = [
       pytest
+      pytest-cov
     ];
   }) {};
 
