@@ -52,7 +52,7 @@ rec {
       cmocka
       (blst.overrideAttrs (old: {
         # TODO: find a better way to specify -Wno-error
-        postUnpack = "sed -i '/-Werror/d' source/build.sh";
+        postUnpack = "sed -i 's/-Werror//; s/-all_load//;' source/build.sh";
       }))
     ];
   }) {
