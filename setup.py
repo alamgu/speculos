@@ -19,24 +19,6 @@ class BuildSpeculos(_build_py):
     """
 
     def run(self):
-        if not find_executable("cmake"):
-            raise RuntimeError("cmake is not found and is required to build Speculos")
-
-        if not self.dry_run:
-            pathlib.Path(self.build_lib).mkdir(parents=True, exist_ok=True)
-            with tempfile.TemporaryDirectory(prefix="build-", dir=self.build_lib) as build_dir:
-                self.spawn(
-                    [
-                        "cmake",
-                        "-H.",
-                        "-B" + build_dir,
-                        "-DCMAKE_BUILD_TYPE=Release",
-                        "-DBUILD_TESTING=0",
-                        "-DWITH_VNC=1",
-                    ]
-                )
-                self.spawn(["cmake", "--build", build_dir])
-
         super().run()
 
 
