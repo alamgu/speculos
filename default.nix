@@ -64,12 +64,13 @@ rec {
   };
 
   speculos = pkgs.python3Packages.callPackage (
-  { buildPythonApplication, python3, qemu, makeWrapper 
+  { buildPythonApplication, python3, qemu, makeWrapper
   , pyqt5, construct, mnemonic, pyelftools, setuptools, jsonschema, flask, flask-restful, pillow, requests, pytesseract
   , pytest, pytest-cov, setuptools_scm
   }: buildPythonApplication {
     pname = "speculos";
     version = "0.5.0";
+    pyproject = true;
 
     inherit src ledgered;
 
@@ -85,11 +86,6 @@ rec {
       install -d $out/bin/
       cp ${src}/tools/debug.sh "$out/bin/"
       cp ${src}/tools/gdbinit "$out/bin/"
-    '';
-
-    postPatch = ''
-      substituteInPlace setup.py \
-        --replace "flask>=2.0.0,<3.0.0" "flask"
     '';
 
     propagatedBuildInputs = [
