@@ -71,7 +71,7 @@ rec {
     pname = "speculos";
     version = "0.5.0";
 
-    inherit src;
+    inherit src ledgered;
 
     postUnpack = ''
       rm $sourceRoot/README.md
@@ -104,6 +104,7 @@ rec {
       pillow
       requests
       pytesseract
+      ledgered
 
       qemu
     ];
@@ -118,4 +119,40 @@ rec {
     ];
   }) {};
 
+  ledgered = pkgs.python3Packages.callPackage (
+  { lib
+  , buildPythonPackage
+  , fetchPypi
+  , setuptools
+  , setuptools_scm
+  , toml
+  , pyelftools
+  , pygithub
+  }:
+
+  buildPythonPackage rec {
+    pname = "ledgered";
+    version = "0.7.1";
+    pyproject = true;
+
+    src = fetchPypi {
+      inherit pname version;
+      hash = "sha256-Wyn5LzvZTIP6nWxrS+u62YNO24GmLTyr1HpnFAnNJdQ=";
+    };
+
+    build-system = [
+      setuptools
+      setuptools_scm
+    ];
+
+    propagatedBuildInputs = [
+      setuptools
+      setuptools_scm
+      toml
+      pyelftools
+      pygithub
+    ];
+
+    doCheck = true;
+  }) {};
 }
