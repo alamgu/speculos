@@ -120,14 +120,18 @@ class OCR:
     # Maximum space for a letter to be considered part of the same word
     MAX_BLANK_SPACE_NANO = 12
     MAX_BLANK_SPACE_STAX = 24
+    MAX_BLANK_SPACE_FLEX = 26
 
-    def __init__(self, model: str):
+    def __init__(self, model: str, use_bagl: bool):
         self.events: List[TextEvent] = []
         # Store the model of the device
         self.model = model
+        self.use_bagl = use_bagl
         # Maximum space for a letter to be considered part of the same word
         if model == "stax":
             self.max_blank_space = OCR.MAX_BLANK_SPACE_STAX
+        elif model == "flex":
+            self.max_blank_space = OCR.MAX_BLANK_SPACE_FLEX
         else:
             self.max_blank_space = OCR.MAX_BLANK_SPACE_NANO
 
@@ -166,7 +170,7 @@ class OCR:
             else:
                 # create a new TextEvent if there are no events yet
                 # or if there is a new line
-                self.events.append(TextEvent(char, x, y, w, h))
+                self.events.append(TextEvent(char, x, y, w, h, False))
 
     def store_char_in_last_event(self, x: int, y: int, w: int, h: int, char: str) -> None:
         """
@@ -206,7 +210,7 @@ class OCR:
                 return
 
         # create a new TextEvent if there are no events yet or if there is a new line
-        self.events.append(TextEvent(char, x, y, w, h))
+        self.events.append(TextEvent(char, x, y, w, h, False))
 
     def analyze_bitmap(self, data: bytes) -> None:
         """
@@ -215,7 +219,7 @@ class OCR:
         For older SKD versions, legacy behaviour is used: parsing internal
         fonts to find a matching bitmap.
         """
-        if self.model == "stax":
+        if not self.use_bagl:
             # Can be called via SephTag.NBGL_DRAW_IMAGE or SephTag.NBGL_DRAW_IMAGE_RLE
             # In both cases, data contains:
             # - area (sizeof(nbgl_area_t))

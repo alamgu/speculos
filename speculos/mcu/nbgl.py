@@ -3,7 +3,14 @@ import logging
 import sys
 from construct import Struct, Int8ul, Int16ul
 from enum import IntEnum
-from typing import Tuple
+from speculos.observer import TextEvent
+try:
+    from functools import cache
+except ImportError:
+    # `functools.cache` does not exists on Python3.8
+    from functools import lru_cache
+    cache = lru_cache(maxsize=None)
+from typing import List, Tuple
 
 from .display import FrameBuffer, GraphicLibrary
 # This is a copy - original version is in the SDK (tools/rle_custom.py)
@@ -30,6 +37,7 @@ nbgl_area_t = Struct(
 class NBGL(GraphicLibrary):
 
     @staticmethod
+    @cache
     def to_screen_color(color: int, bpp: int) -> int:
         color_table = {
             1: 0xFFFFFF,
@@ -47,19 +55,15 @@ class NBGL(GraphicLibrary):
         self.logger = logging.getLogger("NBGL")
 
     def __assert_area(self, area) -> None:
-        if area.y0 % 4 or area.height % 4:
-            raise AssertionError("X(%d) or height(%d) not 4 aligned " % (area.y0, area.height))
         if area.x0 > self.SCREEN_WIDTH or (area.x0+area.width) > self.SCREEN_WIDTH:
             raise AssertionError("left edge (%d) or right edge (%d) out of screen" % (area.x0, (area.x0 + area.width)))
         if area.y0 > self.SCREEN_HEIGHT or (area.y0+area.height) > self.SCREEN_HEIGHT:
             raise AssertionError("top edge (%d) or bottom edge (%d) out of screen" % (area.y0, (area.y0 + area.height)))
 
-    def hal_draw_rect(self, data: bytes) -> None:
+    def hal_draw_rect(self, data: bytes) -> List[TextEvent]:
         area = nbgl_area_t.parse(data)
         self.__assert_area(area)
-        for x in range(area.x0, area.x0+area.width):
-            for y in range(area.y0, area.y0+area.height):
-                self.fb.draw_point(x, y, NBGL.to_screen_color(area.color, 2))
+        return self.fb.draw_rect(area.x0, area.y0, area.width, area.height, NBGL.to_screen_color(area.color, 2))
 
     def refresh(self, data: bytes) -> bool:
         area = nbgl_area_t.parse(data)
@@ -74,19 +78,21 @@ class NBGL(GraphicLibrary):
 
         back_color = NBGL.to_screen_color(area.color, 2)
         front_color = NBGL.to_screen_color(color, 2)
-        for x in range(area.x0, area.x0+area.width):
-            for y in range(area.y0, area.y0+area.height):
-                if (mask >> (y-area.y0)) & 0x1:
-                    self.fb.draw_point(x, y, front_color)
-                else:
-                    self.fb.draw_point(x, y, back_color)
+
+        for y in range(area.y0, area.y0+area.height):
+            if (mask >> (y-area.y0)) & 0x1:
+                self.fb.draw_horizontal_line(area.x0, y, area.width, front_color)
+            else:
+                self.fb.draw_horizontal_line(area.x0, y, area.width, back_color)
 
     @staticmethod
+    @cache
     def get_color_from_color_map(color, color_map, bpp):
         # #define GET_COLOR_MAP(__map__,__col__) ((__map__>>(__col__*2))&0x3)
         return NBGL.to_screen_color((color_map >> (color*2)) & 0x3, bpp)
 
     @staticmethod
+    @cache
     def get_4bpp_color_from_color_index(index, front_color, back_color):
         COLOR_MAPS_4BPP = {
             # Manually hardcoced color maps

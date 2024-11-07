@@ -16,7 +16,7 @@ class Headless(Display):
 
         self.m = HeadlessPaintWidget(self.model, server.vnc)
         self._gl: GraphicLibrary
-        if display.model != "stax":
+        if display.use_bagl:
             self._gl = bagl.Bagl(self.m, MODELS[self.model].screen_size, self.model)
         else:
             self._gl = nbgl.NBGL(self.m, MODELS[self.model].screen_size, self.model)
@@ -53,15 +53,16 @@ class HeadlessPaintWidget(FrameBuffer):
                _1: Optional[int] = None,
                _2: Optional[int] = None,
                _3: Optional[int] = None) -> bool:
-        if self.pixels:
+        if self.pixels or self.draw_default_color:
             self._redraw()
             self.pixels = {}
+            self.draw_default_color = False
             return True
         return False
 
     def _redraw(self) -> None:
         if self.vnc:
-            self.vnc.redraw(self.pixels)
+            self.vnc.redraw(self.pixels, self.default_color)
         self.update_screenshot()
 
 

@@ -126,8 +126,29 @@ class Api:
         with self.session.post(f"{self.api_url}/button/{button}", json=data) as response:
             check_status_code(response, f"/button/{button}")
 
-    def finger_touch(self, x: int, y: int, delay: float = 0.5) -> None:
+    def finger_touch(self,
+                     x: int, y: int,
+                     x2: Optional[int] = None, y2: Optional[int] = None,
+                     delay: float = 0.5) -> None:
         data = {"action": "press-and-release", "x": x, "y": y, "delay": delay}
+        if x2 is not None:
+            data["x2"] = x2
+        if y2 is not None:
+            data["y2"] = y2
+        with self.session.post(f"{self.api_url}/finger", json=data) as response:
+            check_status_code(response, "/finger")
+
+    def finger_swipe(self, x: int, y: int, direction: str, delay: float = 0.5) -> None:
+        x2, y2 = x, y
+        if direction == "up":
+            y2 -= 10
+        elif direction == "down":
+            y2 += 10
+        elif direction == "left":
+            x2 -= 10
+        elif direction == "right":
+            x2 += 10
+        data = {"action": "press-and-release", "x": x, "y": y, "x2": x2, "y2": y2, "delay": delay}
         with self.session.post(f"{self.api_url}/finger", json=data) as response:
             check_status_code(response, "/finger")
 
@@ -141,10 +162,16 @@ class Api:
             check_status_code(response, "/screenshot")
             return response.content
 
-    def _apdu_exchange(self, data: bytes) -> bytes:
-        with self.session.post(f"{self.api_url}/apdu", json={"data": data.hex()}) as response:
-            apdu_response = ApduResponse(response)
-            return apdu_response.receive()
+    def _apdu_exchange(self, data: bytes, tick_timeout: int = 5 * 60 * 10) -> bytes:
+        try:
+            data_payload = {"data": data.hex(), "tick_timeout": tick_timeout}
+            with self.session.post(f"{self.api_url}/apdu", json=data_payload) as response:
+                apdu_response = ApduResponse(response)
+                return apdu_response.receive()
+
+        # TimeoutError exception in exchange function raises ChunkedEncodingError exception
+        except requests.exceptions.ChunkedEncodingError:
+            raise TimeoutError()
 
     def _apdu_exchange_nowait(self, data: bytes) -> requests.Response:
         return self.session.post(f"{self.api_url}/apdu", json={"data": data.hex()}, stream=True)
@@ -239,9 +266,11 @@ class SpeculosClient(Api, SpeculosInstance):
     ) -> None:
         self.stop()
 
-    def apdu_exchange(self, cla: int, ins: int, data: bytes = b"", p1: int = 0, p2: int = 0) -> bytes:
+    def apdu_exchange(
+            self, cla: int, ins: int, data: bytes = b"", p1: int = 0, p2: int = 0,
+            tick_timeout: int = 5 * 60 * 10) -> bytes:
         apdu = bytes([cla, ins, p1, p2, len(data)]) + data
-        return Api._apdu_exchange(self, apdu)
+        return Api._apdu_exchange(self, apdu, tick_timeout)
 
     @contextmanager
     def apdu_exchange_nowait(

@@ -118,6 +118,10 @@ unsigned long sys_nbgl_front_draw_img_file(nbgl_area_t *area, uint8_t *buffer,
   }
   size_t len = sizeof(nbgl_area_t) + 1;
   size_t buffer_len = 0;
+
+  // force area bpp with the value from "file" to avoid some issues
+  area->bpp = (buffer[4] >> 4) & 0xF;
+
   switch (compressed) {
   case 0: // no compression
     buffer_len = (area->width * area->height * (area->bpp + 1)) / 8;
@@ -148,10 +152,43 @@ unsigned long sys_nbgl_front_draw_img_file(nbgl_area_t *area, uint8_t *buffer,
 
 unsigned long sys_nbgl_get_font(unsigned int fontId)
 {
-  if (fontId >= STAX_NB_FONTS) {
+  switch (hw_model) {
+  case MODEL_STAX: {
+    unsigned int maxNbFonts;
+    if (sdk_version >= SDK_API_LEVEL_15) {
+      maxNbFonts = STAX_NB_FONTS;
+    } else {
+      maxNbFonts = STAX_NB_FONTS_12;
+    }
+    if (fontId >= maxNbFonts) {
+      return 0;
+    } else {
+      return *((unsigned int *)(STAX_FONTS_ARRAY_ADDR + (4 * fontId)));
+    }
+  }
+  case MODEL_FLEX:
+    fontId -= 11; // BAGL_FONT_INTER_REGULAR_28px
+    if (fontId >= FLEX_NB_FONTS) {
+      return 0;
+    } else {
+      return *((unsigned int *)(FLEX_FONTS_ARRAY_ADDR + (4 * fontId)));
+    }
+  case MODEL_NANO_SP:
+    fontId -= 8; // BAGL_FONT_OPEN_SANS_EXTRABOLD_11px_1bpp
+    if (fontId >= NANO_NB_FONTS) {
+      return 0;
+    } else {
+      return *((unsigned int *)(NANOSP_FONTS_ARRAY_ADDR + (4 * fontId)));
+    }
+  case MODEL_NANO_X:
+    fontId -= 8; // BAGL_FONT_OPEN_SANS_EXTRABOLD_11px_1bpp
+    if (fontId >= NANO_NB_FONTS) {
+      return 0;
+    } else {
+      return *((unsigned int *)(NANOX_FONTS_ARRAY_ADDR + (4 * fontId)));
+    }
+  default:
     return 0;
-  } else {
-    return *((unsigned int *)(STAX_FONTS_ARRAY_ADDR + (4 * fontId)));
   }
 }
 

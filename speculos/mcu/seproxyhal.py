@@ -66,7 +66,7 @@ RENDER_METHOD = RenderMethods(0, 1)
 
 
 class TimeTickerDaemon(threading.Thread):
-    def __init__(self, add_tick: Callable, *args, **kwargs):
+    def __init__(self, add_tick: Callable, wait_until_tick_is_processed: Callable, *args, **kwargs):
         """
         Initializes the Ticker Daemon
         The goal of this daemon is to emulate the time spent in the application by sending it
@@ -81,6 +81,7 @@ class TimeTickerDaemon(threading.Thread):
         self._paused = False
         self._resume_cond = threading.Condition()
         self.add_tick = add_tick
+        self.wait_until_tick_is_processed = wait_until_tick_is_processed
 
     def pause(self):
         """
@@ -106,6 +107,7 @@ class TimeTickerDaemon(threading.Thread):
         Internal function to handle the pause
         """
         while self.paused:
+            self.wait_until_tick_is_processed()
             self._paused = True
             with self._resume_cond:
                 self._resume_cond.wait()
@@ -148,6 +150,9 @@ class SocketHelper(threading.Thread):
             data += tmp
             size -= len(tmp)
         return data
+
+    def get_tick_count(self):
+        return self.ticks_count
 
     def read_packet(self):
         data = self._recvall(3)
@@ -196,7 +201,12 @@ class SocketHelper(threading.Thread):
         with self.queue_condition:
             self.queue_condition.notify()
 
-    def add_tick(self, wait_fully_processed=False):
+    def wait_until_tick_is_processed(self):
+        # Wait until the app has finished processing the tick
+        while self.tick_requested or self.queue or not self.status_event.is_set():
+            self.status_event.wait()
+
+    def add_tick(self, wait_until_tick_is_processed=False):
         """Request sending of a ticker event to the app"""
         self.tick_requested = True
 
@@ -204,10 +214,8 @@ class SocketHelper(threading.Thread):
         with self.queue_condition:
             self.queue_condition.notify()
 
-        if wait_fully_processed:
-            # Wait until the app have finished processing the tick
-            while self.tick_requested or self.queue or not self.status_event.is_set():
-                self.status_event.wait()
+        if wait_until_tick_is_processed:
+            self.wait_until_tick_is_processed()
 
     def run(self):
         while not self.stop:
@@ -242,6 +250,7 @@ class SeProxyHal(IODevice):
     def __init__(self,
                  sock: socket,
                  model: str,
+                 use_bagl: bool,
                  automation: Optional[Automation] = None,
                  automation_server: Optional[BroadcastInterface] = None,
                  transport: str = 'hid'):
@@ -257,12 +266,15 @@ class SeProxyHal(IODevice):
         self.socket_helper = SocketHelper(self._socket, self.status_event)
         self.socket_helper.start()
 
-        self.time_ticker_thread = TimeTickerDaemon(self.socket_helper.add_tick)
+        self.time_ticker_thread = TimeTickerDaemon(self.socket_helper.add_tick,
+                                                   self.socket_helper.wait_until_tick_is_processed)
         self.time_ticker_thread.start()
 
         self.usb = usb.USB(self.socket_helper.queue_packet, transport=transport)
 
-        self.ocr = OCR(model)
+        self.ocr = OCR(model, use_bagl)
+
+        self.use_bagl = use_bagl
 
         # A list of callback methods when an APDU response is received
         self.apdu_callbacks: List[Callable[[bytes], None]] = []
@@ -319,17 +331,14 @@ class SeProxyHal(IODevice):
                 if self.refreshed:
                     self.refreshed = False
 
-                    # Run the OCR
+                    # Update the screenshot, we'll upload its associated events shortly
                     screen.display.gl.update_screenshot()
-                    screen.display.gl.take_screenshot()
-
-                    # Publish the new screenshot, we'll upload its associated events shortly
                     screen.display.gl.update_public_screenshot()
 
-                if screen.display.model != "stax" and screen.display.screen_update():
+                if self.use_bagl and screen.display.screen_update():
                     if screen.display.model in ["nanox", "nanosp"]:
                         self.events += self.ocr.get_events()
-                elif screen.display.model == "stax":
+                elif not self.use_bagl:
                     self.events += self.ocr.get_events()
 
                 # Apply automation rules after having received a GENERAL_STATUS_LAST_COMMAND tag. It allows the
@@ -350,8 +359,7 @@ class SeProxyHal(IODevice):
             self.logger.debug(f"DISPLAY_STATUS {data!r}")
             if screen.display.model not in ["nanox", "nanosp"] or tag == SephTag.BAGL_DRAW_RECT:
                 events = screen.display.display_status(data)
-                if events:
-                    self.events += events
+                self.events += events
             if tag != SephTag.BAGL_DRAW_RECT:
                 self.socket_helper.send_packet(SephTag.DISPLAY_PROCESSED_EVENT)
 
@@ -413,14 +421,14 @@ class SeProxyHal(IODevice):
 
         elif tag == SephTag.NBGL_DRAW_RECT:
             assert isinstance(screen.display.gl, NBGL)
-            screen.display.gl.hal_draw_rect(data)
+            self.events += screen.display.gl.hal_draw_rect(data)
 
         elif tag == SephTag.NBGL_REFRESH:
             assert isinstance(screen.display.gl, NBGL)
             screen.display.gl.refresh(data)
-            # Stax only
+            # Stax/Flex only
             # We have refreshed the screen, remember it for the next time we have SephTag.GENERAL_STATUS
-            # then we'll perform a new OCR and make public the resulting screenshot / OCR analysis
+            # then we'll perform a screen update and make public the resulting screenshot
             self.refreshed = True
 
         elif tag == SephTag.NBGL_DRAW_LINE:
@@ -471,7 +479,7 @@ class SeProxyHal(IODevice):
         elif action == "resume":
             self.time_ticker_thread.resume()
         elif action == "single-step":
-            self.time_ticker_thread.add_tick(wait_fully_processed=True)
+            self.time_ticker_thread.add_tick(wait_until_tick_is_processed=True)
 
     def handle_wait(self, delay: float):
         '''Wait for a specified delay, taking account real time seen by the app.'''
@@ -482,7 +490,7 @@ class SeProxyHal(IODevice):
                 time.sleep(TICKER_DELAY)
         else:
             for _ in range(expected_ticks):
-                self.time_ticker_thread.add_tick(wait_fully_processed=True)
+                self.time_ticker_thread.add_tick(wait_until_tick_is_processed=True)
 
     def to_app(self, packet: bytes):
         '''
@@ -499,3 +507,6 @@ class SeProxyHal(IODevice):
             self.socket_helper.queue_packet(SephTag(tag), packet)
         else:
             self.usb.xfer(packet)
+
+    def get_tick_count(self):
+        return self.socket_helper.get_tick_count()
