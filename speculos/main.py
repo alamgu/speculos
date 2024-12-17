@@ -29,6 +29,7 @@ from .mcu.button_tcp import FakeButton
 from .mcu.finger_tcp import FakeFinger
 from .mcu.struct import DisplayArgs, ServerArgs
 from .mcu.vnc import VNC
+from .mcu.transport import TransportType
 from .observer import BroadcastInterface
 from .resources_importer import resources
 
@@ -136,6 +137,9 @@ def run_qemu(s1: socket.socket, s2: socket.socket, args: argparse.Namespace, use
         argv += ['-a', str(args.apiLevel)]
     else:
         argv += ['-k', str(args.sdk)]
+
+    if args.pki_prod:
+        argv += ['-p']
 
     # load cxlib only if available for the specified api level or sdk
     if args.apiLevel:
@@ -268,7 +272,9 @@ def main(prog=None) -> int:
                                                                    'to use a hex seed, prefix it with "hex:"')
     parser.add_argument('-t', '--trace', action='store_true', help='Trace syscalls')
     parser.add_argument('-u', '--usb', default='hid', help='Configure the USB transport protocol, '
-                                                           'either HID (default) or U2F')
+                        'either HID (default) or U2F (DEPRECATED, use `--transport` instead)')
+    parser.add_argument('-T', '--transport', default=None, choices=('HID', 'U2F', 'NFC'),
+                        help='Configure the transport protocol: HID (default), U2F or NFC.')
 
     group = parser.add_argument_group('network arguments')
     group.add_argument('--apdu-port', default=9999, type=int, help='ApduServer TCP port')
@@ -290,6 +296,7 @@ def main(prog=None) -> int:
                                                         "left button, 'a' right, 's' both). Default: arrow keys")
     group.add_argument('--progressive', action='store_true', help='Enable step-by-step rendering of graphical elements')
     group.add_argument('--zoom', help='Display pixel size.', type=int, choices=range(1, 11))
+    group.add_argument('-p', '--pki-prod', action='store_true', help='Use production public key for PKI')
 
     if prog:
         parser.prog = prog
@@ -452,7 +459,7 @@ def main(prog=None) -> int:
         # TODO: remove this condition and all associated code in next major version
         logger.warn("--automation-port is deprecated, please use the REST API instead")
         if api_enabled:
-            logger.warn("--automation-port is incompatible with the the API server, disabling the latter")
+            logger.warn("--automation-port is incompatible with the API server, disabling the latter")
             api_enabled = False
         automation_server = AutomationServer(("0.0.0.0", args.automation_port), AutomationClient)
         automation_thread = threading.Thread(target=automation_server.serve_forever, daemon=True)
@@ -466,6 +473,12 @@ def main(prog=None) -> int:
     qemu_pid = run_qemu(s1, s2, args, use_bagl)
     s1.close()
 
+    # The `--transport` argument takes precedence over `--usb`
+    if args.transport is not None:
+        transport_type = TransportType[args.transport]
+    else:
+        transport_type = TransportType[args.usb.upper()]
+
     apdu = apdu_server.ApduServer(host="0.0.0.0", port=args.apdu_port)
     seph = seproxyhal.SeProxyHal(
         s2,
@@ -473,7 +486,7 @@ def main(prog=None) -> int:
         use_bagl=use_bagl,
         automation=automation_path,
         automation_server=automation_server,
-        transport=args.usb)
+        transport=transport_type)
 
     button = None
     if args.button_port:
