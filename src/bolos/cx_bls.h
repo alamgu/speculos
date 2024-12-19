@@ -3,6 +3,7 @@
 
 #include <blst.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #define CX_BLS_BLS12381_PARAM_LEN (48)
 #define CX_BLS_BLS12381_KEY_LEN   (32)
